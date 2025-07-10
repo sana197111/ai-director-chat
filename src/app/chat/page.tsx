@@ -1,3 +1,5 @@
+// src/app/chat/page.tsx
+
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
@@ -80,6 +82,7 @@ export default function ChatPage() {
     if (currentDirectorRef.current !== state.director.selected) {
       currentDirectorRef.current = state.director.selected
       initRef.current = false
+      setCurrentChoices([]) // 감독 변경 시 선택지 초기화
     }
 
     const alreadyInited = initRef.current
@@ -88,6 +91,8 @@ export default function ChatPage() {
 
     initRef.current = true
 
+    setIsTyping(true) // 초기 인사말 로드 시에도 "감독이 생각 중" 표시
+
     const run = async () => {
       try {
         const greeting = await generateInitialGreeting(
@@ -95,7 +100,7 @@ export default function ChatPage() {
           state.scenario.cuts
         )
         actions.addMessage({
-          id: `greeting-${Date.now()}`,
+          id: `greeting-${state.director.selected}-${Date.now()}`,
           role: 'assistant',
           content: greeting.message,
           timestamp: new Date(),
@@ -105,17 +110,19 @@ export default function ChatPage() {
       } catch {
         const fallback = getInitialGreeting(state.director.selected!)
         actions.addMessage({
-          id: `greeting-fallback-${Date.now()}`,
+          id: `greeting-fallback-${state.director.selected}-${Date.now()}`,
           role: 'assistant',
           content: fallback.message,
           timestamp: new Date(),
           choices: fallback.choices
         })
         setCurrentChoices(fallback.choices)
+      } finally {
+        setIsTyping(false) // 인사말 로드 완료 후 "감독이 생각 중" 사라짐
       }
     }
     run()
-  }, [state.director.selected, state.scenario.completed, state.chat.messages.length, actions])
+  }, [state.director.selected, state.scenario.completed, state.chat.messages.length, actions, state.scenario.cuts])
 
   /* ───────────────────────────── 네트워크 상태 ──────────────────────────────── */
 
@@ -150,7 +157,7 @@ export default function ChatPage() {
     audioRef.current.src = `/sounds/bgm/${state.director.selected}.mp3`
     audioRef.current.loop = true
     audioRef.current.volume = 0.3
-    const onCanPlay = () => !isMuted && audioRef.current?.play().catch(() => {})
+    const onCanPlay = () => !isMuted && audioRef.current?.play().catch(() => { })
     audioRef.current.addEventListener('canplay', onCanPlay)
     return () => {
       audioRef.current?.pause()
@@ -235,6 +242,7 @@ export default function ChatPage() {
         timestamp: new Date(),
         choices: off.choices
       })
+      setCurrentChoices(off.choices || [])
       showToast({ message: '네트워크 오류로 오프라인 모드 전환', type: 'warning' })
     } finally {
       setIsTyping(false)
@@ -267,22 +275,27 @@ export default function ChatPage() {
   /* ───────────────────────────── 기타 핸들러 ───────────────────────────────── */
 
   const handleBack = () => {
-    haptic.light()
-    actions.setStep('director')
-    router.push('/director')
-  }
+    haptic.light();
+    // 대화는 그대로 두고 감독 선택 화면으로만 이동
+    // setStep을 'director'로 변경하지 않고 그냥 이동
+    // 이렇게 하면 다시 돌아왔을 때 채팅이 유지됨
+    router.push('/director');
+  };
 
   const handleEndSession = () => {
-    haptic.heavy()
-    setShowEndModal(false)
+    haptic.heavy();
+    setShowEndModal(false);
     setTimeout(() => {
       if (endModalType === 'chat') {
-        actions.resetChat()
-        setTimeUpHandled(false)
-        router.push('/director')
+        // 'chat' 타입일 때는 채팅만 리셋하고 감독 선택 화면으로
+        actions.resetChat();
+        setTimeUpHandled(false);
+        actions.setStep('director');
+        router.push('/director');
       } else {
-        actions.resetAll()
-        router.push('/')
+        // 'all' 타입일 때는 전체 리셋
+        actions.resetAll();
+        router.push('/');
       }
     }, 150)
   }

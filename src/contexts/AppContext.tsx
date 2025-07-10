@@ -1,9 +1,26 @@
+// src/contexts/AppContext.tsx
+
 'use client'
 
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react'
 import { AppState, DirectorType, Message, Choice } from '@/types'
 import { storage } from '@/lib/storage'
 import { directors } from '@/constants/directors'
+
+/* ─── per-director 채팅 ↔ localStorage 헬퍼 ─── */
+function saveChatToLS(director: string | null, messages: Message[]) {
+  if (!director) return;
+  localStorage.setItem(`chat_${director}`, JSON.stringify(messages));
+}
+
+function loadChatFromLS(director: string | null): Message[] {
+  if (!director) return [];
+  try {
+    return JSON.parse(localStorage.getItem(`chat_${director}`) || '[]');
+  } catch {
+    return [];
+  }
+}
 
 // Initial state
 const initialState: AppState = {
@@ -73,11 +90,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'SELECT_DIRECTOR':
       const directorData = directors[action.payload]
+      // 감독이 변경되면 해당 감독의 채팅 기록을 로드
+      const savedMessages = loadChatFromLS(action.payload)
       return {
         ...state,
         director: {
           selected: action.payload,
           data: directorData
+        },
+        chat: {
+          ...state.chat,
+          messages: savedMessages,
+          currentTurn: savedMessages.length,
+          startTime: savedMessages.length > 0 ? state.chat.startTime : new Date()
         },
         session: {
           ...state.session,
@@ -176,15 +201,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
       }
 
     case 'RESET_CHAT':
+      // 현재 감독의 채팅 기록만 삭제
+      if (state.director.selected) {
+        localStorage.removeItem(`chat_${state.director.selected}`)
+      }
       return {
         ...state,
         chat: {
           ...initialState.chat,
           startTime: new Date()
-        },
-        session: {
-          ...state.session,
-          currentStep: 'chat'
         }
       }
 
@@ -257,7 +282,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const savedSession = storage.get<AppState['session']>('SESSION')
     const savedDirector = storage.get<AppState['director']>('DIRECTOR')
     const savedScenario = storage.get<AppState['scenario']>('SCENARIO')
-    const savedChat = storage.get<AppState['chat']>('CHAT')
+    const savedMessages  = loadChatFromLS(savedDirector?.selected ?? null);
 
     if (savedSession && !storage.isSessionExpired(savedSession.lastActivity)) {
       dispatch({
@@ -266,7 +291,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           session: savedSession,
           director: savedDirector || initialState.director,
           scenario: savedScenario || initialState.scenario,
-          chat: savedChat || initialState.chat
+          chat: {
+            ...initialState.chat,
+            messages:    savedMessages,
+            currentTurn: savedMessages.length
+          }
         }
       })
     } else {
@@ -285,7 +314,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       storage.set('SESSION', state.session)
       storage.set('DIRECTOR', state.director)
       storage.set('SCENARIO', state.scenario)
-      storage.set('CHAT', state.chat)
+
+      saveChatToLS(state.director.selected, state.chat.messages)
     }
   }, [state])
 
@@ -314,8 +344,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     extendTime: () => dispatch({ type: 'EXTEND_TIME' }),
     resetChat: () => dispatch({ type: 'RESET_CHAT' }),
     resetAll: () => {
-      storage.clearAll()
-      dispatch({ type: 'RESET_ALL' })
+      storage.clearAll();   // 공통 키 제거
+
+      // 감독별 chat_… 기록 모두 삭제
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('chat_'))
+        .forEach(k => localStorage.removeItem(k));
+
+      dispatch({ type: 'RESET_ALL' });
     },
     updateActivity: () => dispatch({ type: 'UPDATE_ACTIVITY' })
   }

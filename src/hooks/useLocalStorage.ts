@@ -1,3 +1,5 @@
+// File: ai-director-chat/src/hooks/useLocalStorage.ts
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'

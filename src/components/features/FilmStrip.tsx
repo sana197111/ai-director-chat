@@ -49,17 +49,41 @@ const CutModal: React.FC<CutModalProps> = ({
   }
 
   const cutTitles = [
-    '#01 Joy_기빠던 장면',
+    '#01 Joy_기빴던 장면',
     '#02 Anger_화났던 장면',
-    '#03 Sadness_슬픈던 장면',
+    '#03 Sadness_슬펐던 장면',
     '#04 Pleasure_즐거웠던 장면'
   ]
 
   const placeholders = [
-    '기빠던 순간의 상황과 대사를 입력해주세요...',
+    '기빴던 순간의 상황과 대사를 입력해주세요...',
     '화났던 순간의 상황과 대사를 입력해주세요...',
-    '슬픈던 순간의 상황과 대사를 입력해주세요...',
+    '슬펐던 순간의 상황과 대사를 입력해주세요...',
     '즐거웠던 순간의 상황과 대사를 입력해주세요...'
+  ]
+
+  // 각 감정별로 다른 예시
+  const examples = [
+    {
+      // Joy - 기쁨
+      situation: '초등학교 운동회 50m 달리기에서 2등으로 결승선을 끊자 선생님이 목에 메달을 걸어주던 순간.',
+      dialogue: '"이거 들고 바로 엄마한테 뛰어가야지!"'
+    },
+    {
+      // Anger - 화남
+      situation: '중학생 때 애지중지 모은 스티커 앨범을 동생이 허락도 없이 친구들에게 나눠주고 "괜찮지?"라며 웃을 때.',
+      dialogue: '"내 보물을 왜 마음대로 가져가?"'
+    },
+    {
+      // Sadness - 슬픔
+      situation: '대학교 겨울방학 전날, 기숙사 앞 버스 정류장에서 연인이 "우리 그만하자"는 말을 남기고 버스에 올라타 멀어지던 밤.',
+      dialogue: '"추억도 저 버스랑 같이 떠나는구나…"'
+    },
+    {
+      // Pleasure - 즐거움
+      situation: '취업 준비로 지친 어느 비 오는 토요일 밤, 친구가 편의점 우산 두 개를 들고 찾아와 빗속을 산책하며 끝없이 수다 떨던 시간.',
+      dialogue: '"빗소리 덕분에 마음도 말끔해진다."'
+    }
   ]
 
   return (
@@ -76,9 +100,13 @@ const CutModal: React.FC<CutModalProps> = ({
           </p>
           <div className="text-xs text-gray-600 space-y-2">
             <div><strong>예시 형식:</strong></div>
-            <div className="bg-white rounded p-2 text-xs">
-              <strong>상황:</strong> 초등학교 운동회 50m 달리기에서 2등으로 결승선을 끝자 선생님이 목에 메달을 걸어주던 순간.<br/>
-              <strong>나의 한마디:</strong> "이거 들고 바로 엄마한테 뛰어가야지!"
+            <div className="bg-white rounded p-3 text-xs space-y-1">
+              <div>
+                <strong>상황:</strong> {examples[cutIndex].situation}
+              </div>
+              <div>
+                <strong>나의 한마디:</strong> {examples[cutIndex].dialogue}
+              </div>
             </div>
           </div>
         </div>
@@ -289,7 +317,7 @@ export const FilmStrip: React.FC<FilmStripProps> = ({
                               {['😊', '😡', '😢', '😄'][index]}
                             </motion.div>
                             <div className="text-xs text-white/80">
-                              <p className="font-medium mb-1">{['기뻤던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
+                              <p className="font-medium mb-1">{['기빴던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
                               <p className="line-clamp-2 text-white/60">
                                 {cut.substring(0, 40)}...
                               </p>
@@ -304,7 +332,7 @@ export const FilmStrip: React.FC<FilmStripProps> = ({
                               {['😊', '😡', '😢', '😄'][index]}
                             </div>
                             <div className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
-                              <p className="font-medium">{['기뻤던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
+                              <p className="font-medium">{['기빴던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
                               <p className="text-xs mt-1">탭하여 작성</p>
                             </div>
                           </div>

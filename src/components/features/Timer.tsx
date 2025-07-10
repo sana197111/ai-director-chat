@@ -132,7 +132,7 @@ export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend }) => {
       <AnimatePresence>
         {showWarning && (
           <motion.div
-            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-toast"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}

@@ -1,3 +1,5 @@
+// src/app/director/page.tsx
+
 'use client'
 
 import React, { useEffect, useState, useRef } from 'react'
@@ -17,27 +19,26 @@ export default function DirectorSelectionPage() {
   const [isNavigating, setIsNavigating] = useState(false)
   const hasInitialized = useRef(false)
 
-  // 페이지 진입 시 감독 선택 초기화 (한 번만)
+  // 페이지 진입 시 감독 선택만 초기화 (채팅은 유지)
   useEffect(() => {
     if (!hasInitialized.current) {
       hasInitialized.current = true
-      // 감독 선택 페이지 진입 시 이전 선택과 채팅 클리어
-      console.log('감독 선택 페이지 진입 - 초기화')
-      actions.resetChat() // 채팅 초기화
-      actions.clearDirector() // 감독 선택 초기화
+      // 감독 선택 페이지 진입 시 감독 선택만 초기화
+      console.log('감독 선택 페이지 진입 - 감독 선택만 초기화')
+      actions.clearDirector() // 감독 선택만 초기화
+      // resetChat()는 제거 - 각 감독별 채팅 기록은 유지
     }
-  }, []) // 페이지 마운트 시에만 실행
+  }, [actions])
 
   // 세션 체크 - 시나리오 완성되지 않으면 시나리오 페이지로
   useEffect(() => {
-    if (state.session.currentStep !== 'director' && state.session.currentStep !== 'chat' && !isNavigating) {
-      if (!state.scenario.completed) {
-        router.push('/scenario')
-      } else if (state.session.currentStep === 'start') {
-        router.push('/')
-      }
+    // chat에서 왔을 경우를 위해 step 체크 조건 수정
+    if (!state.scenario.completed && !isNavigating) {
+      router.push('/scenario')
+    } else if (state.session.currentStep === 'start' && !isNavigating) {
+      router.push('/')
     }
-  }, [state.session.currentStep, state.scenario.completed, router, isNavigating])
+  }, [state.scenario.completed, state.session.currentStep, router, isNavigating])
 
   const handleBack = () => {
     haptic.light()
@@ -106,17 +107,6 @@ export default function DirectorSelectionPage() {
             <ArrowLeft className="w-5 h-5 mr-2" />
             뒤로
           </TouchButton>
-          <TouchButton
-            onClick={() => {
-              localStorage.clear()
-              window.location.reload()
-            }}
-            variant="ghost"
-            size="sm"
-            className="text-white"
-          >
-            초기화
-          </TouchButton>
         </div>
 
         {state.director.selected && (
@@ -138,7 +128,7 @@ export default function DirectorSelectionPage() {
           <DirectorCarousel
             onSelect={(directorId) => {
               console.log('감독 선택됨:', directorId)
-              actions.resetChat() // 새 감독 선택 시 채팅 초기화
+              // resetChat() 제거 - 각 감독별 채팅 기록 유지
               actions.selectDirector(directorId)
             }}
             selectedDirector={state.director.selected}
