@@ -1,0 +1,99 @@
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeft, ArrowRight, Info, ChevronRight } from 'lucide-react'
+import { FilmStrip } from '@/components/features/FilmStrip'
+import { TouchButton, useToast } from '@/components/ui'
+import { useApp } from '@/contexts/AppContext'
+import { haptic } from '@/lib/haptic'
+
+export default function ScenarioInputPage() {
+  const router = useRouter()
+  const { state, actions } = useApp()
+  const { showToast } = useToast()
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [showTips, setShowTips] = useState(true)
+
+  // 세션 및 감독 선택 체크
+  useEffect(() => {
+    if (state.session.currentStep !== 'scenario' || !state.director.selected) {
+      router.push('/director')
+    }
+  }, [state.session.currentStep, state.director.selected, router])
+
+  const handleBack = () => {
+    haptic.light()
+    actions.setStep('director')
+    router.push('/director')
+  }
+
+  const handleNext = () => {
+    if (!state.scenario.completed) {
+      showToast({
+        message: '모든 장면을 작성해주세요',
+        type: 'warning'
+      })
+      haptic.warning()
+      return
+    }
+
+    setIsNavigating(true)
+    haptic.success()
+    
+    showToast({
+      message: '시나리오가 완성되었습니다!',
+      type: 'success'
+    })
+
+    setTimeout(() => {
+      actions.setStep('chat')
+      router.push('/chat')
+    }, 500)
+  }
+
+  const directorTheme = state.director.data ? {
+    color: state.director.data.themeColor,
+    gradient: state.director.data.bgGradient
+  } : undefined
+
+  return (
+    <div className="fullscreen-safe bg-gradient-to-br from-gray-50 to-purple-50">
+      {/* 헤더 */}
+      <motion.header
+        className="flex items-center justify-between p-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <TouchButton
+          onClick={handleBack}
+          variant="ghost"
+          size="sm"
+          className="text-gray-700"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          이전
+        </TouchButton>
+
+        {/* 진행 상태 */}
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded-full bg-green-500" />
+            <span>감독 선택</span>
+          </div>
+          <ChevronRight className="w-4 h-4" />
+          <div className="flex items-center gap-1 text-gray-900 font-medium">
+            <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs">
+              2
+            </div>
+            <span>시나리오 입력</span>
+          </div>
+          <ChevronRight className="w-4 h-4" />
+          <div className="flex items-center gap-1">
+            <div className="w-6 h-6 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center text-xs">
+              3
+            </div>
+            <span>대화</span>
+          </div>
