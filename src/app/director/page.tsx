@@ -90,21 +90,21 @@ export default function DirectorSelectionPage() {
         />
       </div>
 
-      {/* 헤더 */}
+      {/* 헤더 - 더 컴팩트하게 */}
       <motion.header
-        className="relative z-20 flex-shrink-0 flex items-center justify-between p-6"
+        className="relative z-20 flex-shrink-0 flex items-center justify-between p-3 md:p-4"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <TouchButton
             onClick={handleBack}
             variant="ghost"
             size="sm"
-            className="text-white"
+            className="text-white h-8 px-2 text-sm"
           >
-            <ArrowLeft className="w-5 h-5 mr-2" />
+            <ArrowLeft className="w-4 h-4 mr-1" />
             뒤로
           </TouchButton>
         </div>
@@ -113,9 +113,9 @@ export default function DirectorSelectionPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full"
+            className="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full"
           >
-            <p className="text-white text-sm">
+            <p className="text-white text-xs">
               선택: <span className="font-medium">{state.director.data?.nameKo}</span>
             </p>
           </motion.div>
@@ -123,7 +123,7 @@ export default function DirectorSelectionPage() {
       </motion.header>
 
       {/* 캐러셀 컨테이너 */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 min-h-0">
+      <div className="relative z-10 flex-1 flex items-center justify-center px-2 min-h-0">
         <div className="w-full h-full max-w-6xl mx-auto flex items-center justify-center">
           <DirectorCarousel
             onSelect={(directorId) => {
@@ -137,9 +137,9 @@ export default function DirectorSelectionPage() {
         </div>
       </div>
 
-      {/* 하단 네비게이션 */}
+      {/* 하단 네비게이션 - 더 컴팩트하게 */}
       <motion.div
-        className="relative z-20 flex-shrink-0 p-6"
+        className="relative z-20 flex-shrink-0 p-3 md:p-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
@@ -153,6 +153,7 @@ export default function DirectorSelectionPage() {
             disabled={!state.director.selected}
             loading={isNavigating}
             className={`
+              h-12 text-base
               transition-all duration-300
               ${state.director.selected 
                 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black' 
@@ -160,15 +161,15 @@ export default function DirectorSelectionPage() {
               }
             `}
           >
-            <span className="flex items-center justify-center gap-3">
+            <span className="flex items-center justify-center gap-2">
               다음 단계로
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4" />
             </span>
           </TouchButton>
           
           {!state.director.selected && (
             <motion.p
-              className="text-center text-white/60 text-sm mt-4"
+              className="text-center text-white/60 text-xs mt-2"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}

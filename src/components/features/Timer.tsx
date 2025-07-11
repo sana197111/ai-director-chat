@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, Plus, AlertCircle, X } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import { haptic } from '@/lib/haptic'
+import { Portal } from '@/components/ui/Portal'
 
 interface TimerProps {
   onTimeUp: () => void
@@ -129,57 +130,65 @@ export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend }) => {
       </motion.div>
 
       {/* 시간 종료 경고 모달 */}
-      <AnimatePresence>
-        {showWarning && (
-          <motion.div
-            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-toast"
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="bg-orange-100 border border-orange-300 text-orange-800 px-4 py-3 rounded-lg shadow-lg max-w-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">시간이 얼마 남지 않았습니다!</p>
-                    <p className="text-sm">연장 버튼을 눌러 3분을 추가하세요.</p>
+      <Portal>
+        <AnimatePresence>
+          {showWarning && (
+            <div className="fixed inset-0 z-[9999] pointer-events-none flex items-end justify-center sm:items-start sm:justify-center pb-20 sm:pb-0 sm:pt-20 px-4">
+              <motion.div
+                className="pointer-events-auto"
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 50, scale: 0.9 }}
+                transition={{ 
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 30
+                }}
+              >
+                <div className="bg-orange-100 border border-orange-300 text-orange-800 px-4 py-3 rounded-lg shadow-xl max-w-sm w-full backdrop-blur-sm isolate">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">시간이 얼마 남지 않았습니다!</p>
+                        <p className="text-sm">연장 버튼을 눌러 3분을 추가하세요.</p>
+                      </div>
+                    </div>
+                    
+                    {/* X 버튼 */}
+                    <button
+                      onClick={() => setShowWarning(false)}
+                      className="p-1 hover:bg-orange-200 rounded-full transition-colors flex-shrink-0"
+                      title="닫기"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
+                  
+                  {/* 연장 버튼 */}
+                  {state.chat.extensionCount < 3 && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={handleExtend}
+                        className="px-3 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        3분 연장 ({3 - state.chat.extensionCount}회 남음)
+                      </button>
+                      <button
+                        onClick={() => setShowWarning(false)}
+                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                      >
+                        나중에
+                      </button>
+                    </div>
+                  )}
                 </div>
-                
-                {/* X 버튼 */}
-                <button
-                  onClick={() => setShowWarning(false)}
-                  className="p-1 hover:bg-orange-200 rounded-full transition-colors flex-shrink-0"
-                  title="닫기"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {/* 연장 버튼 */}
-              {state.chat.extensionCount < 3 && (
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={handleExtend}
-                    className="px-3 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    3분 연장 ({3 - state.chat.extensionCount}회 남음)
-                  </button>
-                  <button
-                    onClick={() => setShowWarning(false)}
-                    className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
-                  >
-                    나중에
-                  </button>
-                </div>
-              )}
+              </motion.div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </Portal>
     </>
   )
 }

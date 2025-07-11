@@ -435,7 +435,7 @@ export default function ChatPage() {
             </motion.header>
 
             {/* 채팅 로그 (스크롤 영역) */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-black/25 backdrop-blur-sm min-h-0">
+            <div className="flex-1 overflow-y-auto px-4 py-6 pb-32 space-y-4 bg-black/25 backdrop-blur-sm min-h-0">
               <AnimatePresence>
                 {state.chat.messages.map(m => (
                   <ChatBubble

@@ -105,7 +105,7 @@ const CutModal: React.FC<CutModalProps> = ({
                 <strong>상황:</strong> {examples[cutIndex].situation}
               </div>
               <div>
-                <strong>나의 한마디:</strong> {examples[cutIndex].dialogue}
+                <strong>대사:</strong> {examples[cutIndex].dialogue}
               </div>
             </div>
           </div>

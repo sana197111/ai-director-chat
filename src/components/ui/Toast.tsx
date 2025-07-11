@@ -39,7 +39,7 @@ export const Toast: React.FC<ToastProps> = ({
       className={`
         fixed bottom-24 left-1/2 transform -translate-x-1/2
         flex items-center gap-3 px-lg py-md rounded-xl shadow-xl
-        min-w-[320px] max-w-[95vw] z-toast
+        min-w-[320px] max-w-[95vw] z-[1080]
         ${colors[type]}
       `}
       initial={{ opacity: 0, y: 50, x: '-50%' }}
