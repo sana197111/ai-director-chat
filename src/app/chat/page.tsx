@@ -399,12 +399,13 @@ export default function ChatPage() {
                 onClick={handleBack}
                 variant="ghost"
                 size="sm"
-                className="text-white hover:text-yellow-300"
+                className="text-white hover:text-yellow-300 flex items-center gap-2"
               >
                 <ArrowLeft className="w-5 h-5" />
+                <span className="text-sm font-medium">다른 감독이랑 대화하기</span>
               </TouchButton>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} />
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                   <span className="hidden sm:inline text-xs text-white/80 truncate">
@@ -427,9 +428,10 @@ export default function ChatPage() {
                   onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
                   variant="ghost"
                   size="sm"
-                  className="text-white hover:text-yellow-300"
+                  className="text-white hover:text-yellow-300 flex items-center gap-1"
                 >
-                  <RefreshCw className="w-5 h-5" />
+                  <RefreshCw className="w-4 h-4" />
+                  <span className="hidden sm:inline text-xs font-medium">로그아웃</span>
                 </TouchButton>
               </div>
             </motion.header>
