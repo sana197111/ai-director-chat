@@ -400,7 +400,7 @@ export default function ChatPage() {
                   onClick={handleBack}
                   variant="ghost"
                   size="sm"
-                  className="text-white hover:text-yellow-300 !inline-flex !items-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
+                  className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
                 >
                   <ArrowLeft className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium inline-block">다른 감독이랑 대화하기</span>
@@ -409,7 +409,7 @@ export default function ChatPage() {
 
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} />
-                <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
+                <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                   <span className="hidden sm:inline text-xs text-white/80 truncate">
                     {directorTheme?.ost}
                   </span>
@@ -417,7 +417,7 @@ export default function ChatPage() {
                     onClick={toggleSound}
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:text-yellow-300 !p-1"
+                    className="text-white hover:text-yellow-300 !p-1 !flex !items-center !justify-center"
                   >
                     {isMuted ? (
                       <VolumeX className="w-5 h-5" />
@@ -431,7 +431,7 @@ export default function ChatPage() {
                     onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:text-yellow-300 !inline-flex !items-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
                   >
                     <RefreshCw className="w-4 h-4 flex-shrink-0" />
                     <span className="text-xs font-medium inline-block">종료하기</span>
