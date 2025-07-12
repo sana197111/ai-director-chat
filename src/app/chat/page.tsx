@@ -391,21 +391,23 @@ export default function ChatPage() {
 
             {/* 헤더 (고정) */}
             <motion.header
-              className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/20 bg-black/40 backdrop-blur-sm"
+              className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/20 bg-black/40 backdrop-blur-sm overflow-hidden"
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <TouchButton
-                onClick={handleBack}
-                variant="ghost"
-                size="sm"
-                className="text-white hover:text-yellow-300 flex items-center gap-2 px-4 py-2 min-w-0 flex-shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium whitespace-nowrap">다른 감독이랑 대화하기</span>
-              </TouchButton>
+              <div className="flex-shrink-0">
+                <TouchButton
+                  onClick={handleBack}
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:text-yellow-300 !inline-flex !items-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
+                >
+                  <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-medium inline-block">다른 감독이랑 대화하기</span>
+                </TouchButton>
+              </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} />
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                   <span className="hidden sm:inline text-xs text-white/80 truncate">
@@ -424,15 +426,17 @@ export default function ChatPage() {
                     )}
                   </TouchButton>
                 </div>
-                <TouchButton
-                  onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:text-yellow-300 flex items-center gap-2 px-4 py-2 min-w-0 flex-shrink-0"
-                >
-                  <RefreshCw className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-xs font-medium whitespace-nowrap">종료하기</span>
-                </TouchButton>
+                <div className="flex-shrink-0">
+                  <TouchButton
+                    onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
+                  >
+                    <RefreshCw className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-xs font-medium inline-block">종료하기</span>
+                  </TouchButton>
+                </div>
               </div>
             </motion.header>
 
