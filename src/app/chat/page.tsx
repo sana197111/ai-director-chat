@@ -399,9 +399,9 @@ export default function ChatPage() {
                 onClick={handleBack}
                 variant="ghost"
                 size="sm"
-                className="text-white hover:text-yellow-300 flex items-center gap-2 px-3 py-2"
+                className="text-white hover:text-yellow-300 flex items-center gap-2 px-4 py-2 min-w-0 flex-shrink-0"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5 flex-shrink-0" />
                 <span className="text-sm font-medium whitespace-nowrap">다른 감독이랑 대화하기</span>
               </TouchButton>
 
@@ -428,10 +428,10 @@ export default function ChatPage() {
                   onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
                   variant="ghost"
                   size="sm"
-                  className="text-white hover:text-yellow-300 flex items-center gap-2 px-3 py-2"
+                  className="text-white hover:text-yellow-300 flex items-center gap-2 px-4 py-2 min-w-0 flex-shrink-0"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  <span className="text-xs font-medium whitespace-nowrap">로그아웃</span>
+                  <RefreshCw className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-xs font-medium whitespace-nowrap">종료하기</span>
                 </TouchButton>
               </div>
             </motion.header>
