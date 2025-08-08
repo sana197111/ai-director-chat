@@ -507,52 +507,64 @@ export default function ChatPage() {
 
             {/* 헤더 (고정) */}
             <motion.header
-              className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/20 bg-black/40 backdrop-blur-sm overflow-hidden"
+              className="flex-shrink-0 border-b border-white/20 bg-black/40 backdrop-blur-sm"
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="flex-shrink-0">
-                <TouchButton
-                  onClick={handleBack}
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
-                >
-                  <ArrowLeft className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm font-medium inline-block">다른 감독이랑 대화하기</span>
-                </TouchButton>
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {/* 턴 카운터 */}
-                <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
-                  <span className="text-xs text-white/60">대화</span>
-                  <span className="text-sm font-bold text-yellow-300">{state.chat.currentTurn}</span>
-                  <span className="text-xs text-white/60">/ 15턴</span>
-                </div>
-                
-                <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} />
-                <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-1 rounded-full">
-                  <span className="hidden sm:inline text-xs text-white/80 truncate">
-                    {directorTheme?.ost}
-                  </span>
+              {/* 데스크톱 헤더 (1280px 이상) */}
+              <div className="hidden xl:flex items-center justify-between p-4 gap-3">
+                {/* 왼쪽: 다른 감독 버튼 */}
+                <div className="flex-shrink-0 min-w-[120px]">
                   <TouchButton
-                    onClick={toggleSound}
+                    onClick={handleBack}
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:text-yellow-300 !p-1 !flex !items-center !justify-center"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 bg-white/5 rounded-xl border border-white/10 transition-all hover:bg-white/10"
                   >
-                    {isMuted ? (
-                      <VolumeX className="w-5 h-5" />
-                    ) : (
-                      <Volume2 className="w-5 h-5" />
-                    )}
+                    <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-xs font-medium whitespace-nowrap">다른 감독</span>
                   </TouchButton>
                 </div>
-                <div className="flex-shrink-0">
+
+                {/* 중앙: 정보들 - flex-1로 남은 공간 차지 */}
+                <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+                  {/* 턴 카운터 */}
+                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex-shrink-0">
+                    <span className="text-xs text-white/70">대화</span>
+                    <span className="text-base font-bold text-yellow-300">{state.chat.currentTurn}</span>
+                    <span className="text-xs text-white/70">/15</span>
+                  </div>
+                  
+                  {/* 타이머 */}
+                  <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex-shrink-0">
+                    <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} compact />
+                  </div>
+
+                  {/* OST 정보 - 화면 크기에 따라 숨김 */}
+                  <div className="hidden min-[1400px]:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex-shrink-0">
+                    <span className="text-xs text-white/80 font-medium">
+                      OST: {directorTheme?.ost && directorTheme.ost.length > 15 ? directorTheme.ost.substring(0, 15) + '...' : directorTheme?.ost}
+                    </span>
+                    <div className="w-px h-3.5 bg-white/20"></div>
+                    <TouchButton
+                      onClick={toggleSound}
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:text-yellow-300 !p-1 !flex !items-center !justify-center rounded-lg"
+                    >
+                      {isMuted ? (
+                        <VolumeX className="w-3.5 h-3.5" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5" />
+                      )}
+                    </TouchButton>
+                  </div>
+                </div>
+
+                {/* 오른쪽: 종료 버튼 */}
+                <div className="flex-shrink-0 min-w-[80px]">
                   <TouchButton
                     onClick={() => {
-                      // 종료 시에도 캐스팅 메시지 표시
                       if (state.chat.currentTurn >= 5 && !showCastingMessage) {
                         addCastingMessage()
                         setTimeout(() => {
@@ -566,11 +578,155 @@ export default function ChatPage() {
                     }}
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-1.5 !px-3 !py-2 bg-white/5 rounded-xl border border-white/10 transition-all hover:bg-white/10"
                   >
-                    <RefreshCw className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-xs font-medium inline-block">종료하기</span>
+                    <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-xs font-medium whitespace-nowrap">종료</span>
                   </TouchButton>
+                </div>
+              </div>
+
+              {/* 노트북 및 태블릿 헤더 (768px ~ 1279px) */}
+              <div className="hidden md:flex xl:hidden items-center justify-between gap-2 p-3">
+                {/* 왼쪽: 다른 감독 버튼 */}
+                <div className="flex-shrink-0">
+                  <TouchButton
+                    onClick={handleBack}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-1 !px-2 !py-1.5 bg-white/5 rounded-lg border border-white/10 transition-all hover:bg-white/10"
+                  >
+                    <ArrowLeft className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[10px] font-medium whitespace-nowrap hidden min-[900px]:inline">다른감독</span>
+                    <span className="text-[10px] font-medium whitespace-nowrap min-[900px]:hidden">감독</span>
+                  </TouchButton>
+                </div>
+
+                {/* 중앙: 정보들 - flex-1로 남은 공간 차지 */}
+                <div className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
+                  {/* 턴 카운터 */}
+                  <div className="flex items-center gap-0.5 bg-white/10 px-2 py-1 rounded-lg border border-white/10 flex-shrink-0">
+                    <span className="text-[9px] text-white/70 hidden min-[900px]:inline">대화</span>
+                    <span className="text-[11px] font-bold text-yellow-300">{state.chat.currentTurn}</span>
+                    <span className="text-[9px] text-white/70">/15</span>
+                  </div>
+
+                  {/* 타이머 */}
+                  <div className="bg-white/10 px-2 py-1 rounded-lg border border-white/10 flex-shrink-0">
+                    <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} compact />
+                  </div>
+
+                  {/* OST - 큰 화면에서만 표시 */}
+                  <div className="hidden min-[1024px]:flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg border border-white/10 flex-shrink-0">
+                    <span className="text-[9px] text-white/80">OST</span>
+                    <TouchButton
+                      onClick={toggleSound}
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:text-yellow-300 !p-0.5 !flex !items-center !justify-center"
+                    >
+                      {isMuted ? (
+                        <VolumeX className="w-2.5 h-2.5" />
+                      ) : (
+                        <Volume2 className="w-2.5 h-2.5" />
+                      )}
+                    </TouchButton>
+                  </div>
+                </div>
+
+                {/* 오른쪽: 종료 버튼 */}
+                <div className="flex-shrink-0">
+                  <TouchButton
+                    onClick={() => {
+                      if (state.chat.currentTurn >= 5 && !showCastingMessage) {
+                        addCastingMessage()
+                        setTimeout(() => {
+                          setEndModalType('all')
+                          setShowEndModal(true)
+                        }, 2000)
+                      } else {
+                        setEndModalType('all')
+                        setShowEndModal(true)
+                      }
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-1 !px-2 !py-1.5 bg-white/5 rounded-lg border border-white/10 transition-all hover:bg-white/10"
+                  >
+                    <RefreshCw className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-[10px] font-medium whitespace-nowrap">종료</span>
+                  </TouchButton>
+                </div>
+              </div>
+
+              {/* 모바일 헤더 */}
+              <div className="flex md:hidden flex-col gap-3 p-3">
+                {/* 첫 번째 줄: 네비게이션과 종료 */}
+                <div className="flex items-center justify-between">
+                  <TouchButton
+                    onClick={handleBack}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-1.5 !px-2.5 !py-2 bg-white/5 rounded-lg border border-white/10"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-xs font-medium">다른 감독</span>
+                  </TouchButton>
+
+                  <TouchButton
+                    onClick={() => {
+                      if (state.chat.currentTurn >= 5 && !showCastingMessage) {
+                        addCastingMessage()
+                        setTimeout(() => {
+                          setEndModalType('all')
+                          setShowEndModal(true)
+                        }, 2000)
+                      } else {
+                        setEndModalType('all')
+                        setShowEndModal(true)
+                      }
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-1.5 !px-2.5 !py-2 bg-white/5 rounded-lg border border-white/10"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-xs font-medium">종료</span>
+                  </TouchButton>
+                </div>
+
+                {/* 두 번째 줄: 정보들을 균등 분할 */}
+                <div className="grid grid-cols-3 gap-2">
+                  {/* 턴 정보 */}
+                  <div className="flex flex-col items-center bg-white/10 px-2 py-1.5 rounded-lg border border-white/10">
+                    <span className="text-xs text-white/70">대화</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-bold text-yellow-300">{state.chat.currentTurn}</span>
+                      <span className="text-xs text-white/70">/15</span>
+                    </div>
+                  </div>
+
+                  {/* 타이머 */}
+                  <div className="flex items-center justify-center bg-white/10 px-2 py-1.5 rounded-lg border border-white/10">
+                    <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} compact />
+                  </div>
+
+                  {/* OST/사운드 */}
+                  <div className="flex flex-col items-center bg-white/10 px-2 py-1.5 rounded-lg border border-white/10">
+                    <span className="text-xs text-white/70 truncate max-w-full">OST</span>
+                    <TouchButton
+                      onClick={toggleSound}
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:text-yellow-300 !p-1 !flex !items-center !justify-center"
+                    >
+                      {isMuted ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </TouchButton>
+                  </div>
                 </div>
               </div>
             </motion.header>

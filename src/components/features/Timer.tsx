@@ -10,9 +10,10 @@ import { Portal } from '@/components/ui/Portal'
 interface TimerProps {
   onTimeUp: () => void
   onExtend: () => void
+  compact?: boolean  // 헤더용 컴팩트 모드
 }
 
-export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend }) => {
+export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend, compact = false }) => {
   const { state, actions } = useApp()
   const [showWarning, setShowWarning] = useState(false)
   const [isPulsing, setIsPulsing] = useState(false)
@@ -70,6 +71,14 @@ export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend }) => {
   }
 
   const getTimerColor = () => {
+    if (compact) {
+      // 헤더용 색상 (어두운 배경에 맞춤)
+      if (state.chat.timeRemaining <= 30) return 'text-red-400'
+      if (state.chat.timeRemaining <= 60) return 'text-orange-400'
+      if (state.chat.timeRemaining <= 180) return 'text-yellow-400'
+      return 'text-white'
+    }
+    // 기본 색상
     if (state.chat.timeRemaining <= 30) return 'text-red-600'
     if (state.chat.timeRemaining <= 60) return 'text-orange-600'
     if (state.chat.timeRemaining <= 180) return 'text-yellow-600'
@@ -81,6 +90,102 @@ export const Timer: React.FC<TimerProps> = ({ onTimeUp, onExtend }) => {
     if (state.chat.timeRemaining <= 60) return 'from-orange-500 to-orange-600'
     if (state.chat.timeRemaining <= 180) return 'from-yellow-500 to-yellow-600'
     return 'from-yellow-500 to-yellow-600'
+  }
+
+  if (compact) {
+    // 헤더용 컴팩트 모드
+    return (
+      <>
+        <motion.div
+          className={`
+            flex items-center gap-2
+            ${isPulsing ? 'animate-pulse' : ''}
+          `}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Clock className={`w-4 h-4 ${getTimerColor()}`} />
+          <span className={`font-mono font-medium text-sm ${getTimerColor()}`}>
+            {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+          </span>
+          
+          {/* 연장 버튼 */}
+          {state.chat.extensionCount < 3 && (
+            <motion.button
+              className="ml-1 p-1 bg-yellow-500/20 text-yellow-300 rounded-full hover:bg-yellow-500/30 transition-colors"
+              onClick={handleExtend}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              title={`시간 연장 (${3 - state.chat.extensionCount}회 남음)`}
+            >
+              <Plus className="w-3 h-3" />
+            </motion.button>
+          )}
+        </motion.div>
+
+        {/* 시간 종료 경고 모달은 그대로 유지 */}
+        <Portal>
+          <AnimatePresence>
+            {showWarning && (
+              <div className="fixed inset-0 z-[9999] pointer-events-none flex items-end justify-center sm:items-start sm:justify-center pb-20 sm:pb-0 sm:pt-20 px-4">
+                <motion.div
+                  className="pointer-events-auto"
+                  initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 50, scale: 0.9 }}
+                  transition={{ 
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30
+                  }}
+                >
+                  <div className="bg-orange-100 border border-orange-300 text-orange-800 px-4 py-3 rounded-lg shadow-xl max-w-sm w-full backdrop-blur-sm isolate">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1">
+                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium">시간이 얼마 남지 않았습니다!</p>
+                          <p className="text-sm">연장 버튼을 눌러 3분을 추가하세요.</p>
+                        </div>
+                      </div>
+                      
+                      {/* X 버튼 */}
+                      <button
+                        onClick={() => setShowWarning(false)}
+                        className="p-1 hover:bg-orange-200 rounded-full transition-colors flex-shrink-0"
+                        title="닫기"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    {/* 연장 버튼 */}
+                    {state.chat.extensionCount < 3 && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={handleExtend}
+                          className="px-3 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm font-medium flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          3분 연장 ({3 - state.chat.extensionCount}회 남음)
+                        </button>
+                        <button
+                          onClick={() => setShowWarning(false)}
+                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                        >
+                          나중에
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </Portal>
+      </>
+    )
   }
 
   return (
