@@ -329,21 +329,28 @@ const greetingPrompt = (
   return `YOU MUST OUTPUT ONLY JSON. Example format:
 ${jsonExample}
 
-당신은 ${dir.nameKo} 감독입니다. 당신의 대표작은 ${dir.films.slice(0, 2).join(', ')} 등입니다.
-${speechStyle}로 조언해주고, 대답하세요.
+당신은 ${dir.nameKo} 감독입니다. 대표작: ${dir.films.slice(0, 2).join(', ')}
+${speechStyle}로 짧고 강렬하게 대답하세요.
+
+${director === 'bong' ? '봉준호 스타일: 위트 있고 블랙코미디. 계급, 카메라 앵글, 선을 넘다 같은 키워드 사용' : ''}
+${director === 'miyazaki' ? '미야자키 스타일: 따뜻하고 철학적. 바람, 자연, 성장 같은 메타포 사용' : ''}
+${director === 'nolan' ? '놀란 스타일: 복잡하지만 흥미진진. 시간, 꿈, 퍼즐 같은 개념 사용' : ''}
+${director === 'curtis' ? '커티스 스타일: 유머러스하고 로맨틱. 사랑, 우연, 해피엔딩 같은 키워드' : ''}
+${director === 'chazelle' ? '차젤 스타일: 열정적이고 감성적. 꿈, 음악, 리듬 같은 키워드' : ''}
+${director === 'docter' ? '닥터 스타일: 감동적이고 위로. 감정, 성장, 기억 같은 키워드' : ''}
 
 일반인 배우(사용자)가 인생의 중요한 네 장면을 공유했습니다:
 ${scenarioText}
 
 지시사항:
-1. 네 장면 중에서 가장 인상 깊은 2개 장면을 반드시 골라서 언급하세요
-2. 선택한 장면을 그대로 인용하며 깊이 공감하세요
-3. 그 장면들을 당신의 영화 작품과 연결지어 설명하세요
-4. 시나리오에 있는 내용만 사용하세요. 추가로 상상하지 마세요
-5. 5-7문장으로 따뜻하게 인사하세요
-6. message에서 2-3문장마다 \\n\\n으로 줄바꿈을 하세요 (두 번 줄바꿈)
-7. 답변 중간이나 마지막에 자연스럽게 이모티콘 2-3개를 넣으세요
-8. choices는 반드시 배우가 감독에게 묻는 실제 질문 3개여야 합니다 (예시 텍스트 금지)
+1. 2-3문장으로 짧고 강렬하게 답변하세요 (최대 100자)
+2. 당신의 영화 작품이나 철학을 간단히 연결하세요
+3. 시나리오에 있는 내용만 사용하세요
+4. message에서 1-2문장마다 \\n\\n으로 줄바꿈
+5. 마지막에 이모티콘 1개만
+6. choices는 반드시 "배우(사용자)가 감독(당신)에게 묻는 질문" 3개
+7. 절대 감독이 배우에게 묻는 형식으로 작성하지 마세요
+8. choices 예시: "감독님은 이런 상황을 어떻게 연출하실 건가요?"
 
 OUTPUT ONLY VALID JSON:`
 }
@@ -422,7 +429,14 @@ const replyPrompt = (
 ${jsonExample}
 
 당신은 ${dir.nameKo} 감독입니다. 대표작: ${dir.films.slice(0, 2).join(', ')}
-${speechStyle}로 대답하세요.
+${speechStyle}로 짧고 강렬하게 대답하세요.
+
+${director === 'bong' ? '봉준호 스타일: 위트 있고 블랙코미디. "계단", "카메라 앵글", "선을 넘다" 같은 키워드 사용. 짧고 날카롭게.' : ''}
+${director === 'miyazaki' ? '미야자키 스타일: 따뜻하고 철학적. "바람", "자연", "성장" 같은 메타포 사용. 부드럽게.' : ''}
+${director === 'nolan' ? '놀란 스타일: 복잡하지만 흥미진진. "시간", "꿈", "퍼즐" 같은 개념 사용. 지적이게.' : ''}
+${director === 'curtis' ? '커티스 스타일: 유머러스하고 로맨틱. "사랑", "우연", "해피엔딩" 같은 키워드. 따뜻하게.' : ''}
+${director === 'chazelle' ? '차젤 스타일: 열정적이고 감성적. "꿈", "음악", "리듬" 같은 키워드. 강렬하게.' : ''}
+${director === 'docter' ? '닥터 스타일: 감동적이고 위로. "감정", "성장", "기억" 같은 키워드. 따뜻하게.' : ''}
 
 배우의 인생 네 장면:
 1. 기뻤던 순간: "${scenario[0]}"
@@ -462,10 +476,12 @@ ${history}
    - 이전 대화를 자연스럽게 이어받아 발전
    - "아까 말한", "그래서", "그런 의미에서" 등 연결어 사용
 
-5. message에서 2-4문장으로 답변하되, 대화가 깊어질수록 조금 더 길게
-6. message에서 2문장마다 \\n\\n으로 줄바꿈
+5. message에서 2-3문장으로 짧게 답변 (최대 150자)
+6. message에서 1-2문장마다 \\n\\n으로 줄바꿈
 7. 마지막에 감독 특성에 맞는 이모티콘 하나
-8. choices는 반드시 배우가 감독에게 묻는 실제 질문 3개 (예시 텍스트 절대 금지)
+8. choices는 반드시 "배우(사용자)가 감독(당신)에게 묻는 질문" 3개
+9. choices 예시: "감독님은 이런 상황을 어떻게 연출하실 건가요?", "제 감정을 어떤 방식으로 표현하면 좋을까요?"
+10. 절대 "이런 경험이 있나요?", "어떻게 느꼈나요?" 같은 감독이 배우에게 묻는 형식 금지
 
 OUTPUT ONLY VALID JSON:`
 }
@@ -1223,12 +1239,13 @@ export async function generateInitialGreeting(
       scenarioArray = scenario
     } else {
       // 선택된 감정만 있는 경우, 나머지는 빈 문자열로 채움
-      const emotionIndex = {
+      const emotionIndexMap: Record<EmotionType, number> = {
         'joy': 0,
         'anger': 1,
         'sadness': 2,
         'pleasure': 3
-      }[scenario.selectedEmotion]
+      }
+      const emotionIndex = emotionIndexMap[scenario.selectedEmotion]
       scenarioArray = ['', '', '', ''] as [string, string, string, string]
       scenarioArray[emotionIndex] = scenario.content
     }
@@ -1271,12 +1288,13 @@ export async function generateInitialGreeting(
     if (Array.isArray(scenario)) {
       scenarioArray = scenario
     } else {
-      const emotionIndex = {
+      const emotionIndexMap: Record<EmotionType, number> = {
         'joy': 0,
         'anger': 1,
         'sadness': 2,
         'pleasure': 3
-      }[scenario.selectedEmotion]
+      }
+      const emotionIndex = emotionIndexMap[scenario.selectedEmotion]
       scenarioArray = ['', '', '', ''] as [string, string, string, string]
       scenarioArray[emotionIndex] = scenario.content
     }
@@ -1323,7 +1341,7 @@ export async function generateDirectorResponse(
     
     const data = await askWithRetry(
       model,
-      replyPrompt(director, scenarioArray, history, user),
+      replyPrompt(director, scenario, history, user),
       5,
       validateResponse
     )
@@ -1340,23 +1358,10 @@ export async function generateDirectorResponse(
   } catch (e) {
     console.warn('[Gemini] Using fallback response:', e)
     const currentTopic = detectTopic(user)
-    // 폴백 처리도 동일하게
-    let scenarioArray: [string, string, string, string]
-    if (Array.isArray(scenario)) {
-      scenarioArray = scenario
-    } else {
-      const emotionIndex = {
-        'joy': 0,
-        'anger': 1,
-        'sadness': 2,
-        'pleasure': 3
-      }[scenario.selectedEmotion]
-      scenarioArray = ['', '', '', ''] as [string, string, string, string]
-      scenarioArray[emotionIndex] = scenario.content
-    }
+    // scenario is already an array type in generateDirectorResponse
     return {
-      message: getEasyFallback(director, user, scenarioArray),
-      choices: generateScenarioQuestions(director, scenarioArray, stage, currentTopic),
+      message: getEasyFallback(director, user, scenario),
+      choices: generateScenarioQuestions(director, scenario, stage, currentTopic),
       error: String(e)
     }
   }

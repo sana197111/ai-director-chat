@@ -142,15 +142,22 @@ export function useChat(options: UseChatOptions = {}) {
         
         while (attempts < maxRetries) {
           try {
-            // 선택된 감정과 컨텐츠 전달
+            // 선택된 감정과 컨텐츠를 4-tuple 형식으로 변환
             const selectedEmotion = state.scenario.selectedEmotion
             const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
             
+            // 4개 씬 배열 만들기 (선택된 감정의 컨텐츠만 포함)
+            const scenarioArray: [string, string, string, string] = ['', '', '', '']
+            if (selectedEmotion && selectedContent) {
+              const emotionIndex = selectedEmotion === 'joy' ? 0 : 
+                                  selectedEmotion === 'anger' ? 1 : 
+                                  selectedEmotion === 'sadness' ? 2 : 3
+              scenarioArray[emotionIndex] = selectedContent
+            }
+            
             response = await generateDirectorResponse(
               state.director.selected!,
-              selectedEmotion && selectedContent ? 
-                { selectedEmotion, content: selectedContent } : 
-                ['', '', '', ''] as [string, string, string, string], // 폴백
+              scenarioArray,
               content,
               state.chat.messages.map(msg => ({
                 role: msg.role,

@@ -333,7 +333,7 @@ export const FilmStrip: React.FC<FilmStripProps> = ({
                   whileHover={!isDisabled ? { scale: 1.02 } : {}}
                   whileTap={!isDisabled ? { scale: 0.98 } : {}}
                   onClick={() => !isDisabled && handleCardClick(emotion.type)}
-                  disabled={isDisabled}
+                  disabled={isDisabled || false}
                 >
                   {/* 배경 그라디언트 */}
                   <div className={`absolute inset-0 bg-gradient-to-br ${emotion.gradient} ${isDisabled ? 'opacity-50' : 'opacity-90'}`} />

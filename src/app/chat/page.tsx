@@ -62,6 +62,7 @@ export default function ChatPage() {
   const [isOfflineMode, setIsOfflineMode] = useState(!isOnline())
   const [showDirectorInfo, setShowDirectorInfo] = useState(false)
   const [timeUpHandled, setTimeUpHandled] = useState(false)
+  const [showCastingMessage, setShowCastingMessage] = useState(false)
 
   /* ───────────────────────────── 현재 선택지 가져오기 ─────────────────────────── */
   
@@ -125,12 +126,18 @@ export default function ChatPage() {
         const selectedEmotion = state.scenario.selectedEmotion
         const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
         
-        const greeting = await generateInitialGreeting(
-          director,
-          selectedEmotion && selectedContent ? 
-            { selectedEmotion, content: selectedContent } : 
-            ['', '', '', ''] as [string, string, string, string] // 폴백
-        )
+        let greeting
+        if (selectedEmotion && selectedContent) {
+          greeting = await generateInitialGreeting(
+            director,
+            { selectedEmotion, content: selectedContent }
+          )
+        } else {
+          greeting = await generateInitialGreeting(
+            director,
+            ['', '', '', ''] as [string, string, string, string]
+          )
+        }
         
         // 다시 한번 체크 (비동기 처리 중 상태가 변했을 수 있음)
         if (!directorInitMap.current.get(director)) {
@@ -217,6 +224,19 @@ export default function ChatPage() {
     haptic.light()
   }
 
+  /* ───────────────────────────── 15턴 체크 ────────────────────────────────── */
+
+  useEffect(() => {
+    // 15턴 도달 시 캐스팅 메시지
+    if (state.chat.currentTurn >= 15 && !showCastingMessage && !timeUpHandled) {
+      addCastingMessage()
+      setTimeout(() => {
+        setEndModalType('chat')
+        setShowEndModal(true)
+      }, 3000)
+    }
+  }, [state.chat.currentTurn])
+
   /* ───────────────────────────── 메시지 전송 ────────────────────────────────── */
 
   const sendMessage = async (content: string, source: 'choice' | 'input' = 'input') => {
@@ -254,15 +274,22 @@ export default function ChatPage() {
         )
         response = { ...offline, error: undefined }
       } else {
-        // 선택된 감정과 컨텐츠 전달
+        // 선택된 감정과 컨텐츠를 4-tuple 형식으로 변환
         const selectedEmotion = state.scenario.selectedEmotion
         const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
         
+        // 4개 씬 배열 만들기 (선택된 감정의 컨텐츠만 포함)
+        const scenarioArray: [string, string, string, string] = ['', '', '', '']
+        if (selectedEmotion && selectedContent) {
+          const emotionIndex = selectedEmotion === 'joy' ? 0 : 
+                              selectedEmotion === 'anger' ? 1 : 
+                              selectedEmotion === 'sadness' ? 2 : 3
+          scenarioArray[emotionIndex] = selectedContent
+        }
+        
         response = await generateDirectorResponse(
           state.director.selected!,
-          selectedEmotion && selectedContent ? 
-            { selectedEmotion, content: selectedContent } : 
-            ['', '', '', ''] as [string, string, string, string], // 폴백
+          scenarioArray,
           content,
           state.chat.messages.map(m => ({ role: m.role, content: m.content }))
         )
@@ -308,23 +335,51 @@ export default function ChatPage() {
     }
   }
 
+  /* ───────────────────────────── 캐스팅 메시지 처리 ───────────────────────────────── */
+
+  const addCastingMessage = () => {
+    if (showCastingMessage) return
+    setShowCastingMessage(true)
+    
+    const directorName = state.director.data?.nameKo || '감독'
+    const castingMessage = `🎬 ${directorName} 감독님이 당신에게 깊은 인상을 받았습니다!\n\n"당신의 이야기와 감정 표현이 정말 인상적이었습니다. 우리 영화에 꼭 필요한 배우입니다. 함께 작품을 만들어보시겠습니까?"\n\n✨ 축하합니다! 캐스팅 제안을 받으셨습니다!\n\n다른 감독들도 당신을 기다리고 있습니다. 계속해서 새로운 이야기를 만들어보세요.`
+    
+    actions.addMessage({
+      id: `casting-${Date.now()}`,
+      role: 'system',
+      content: castingMessage,
+      timestamp: new Date()
+    })
+    
+    haptic.success()
+    showToast({ message: '🎬 캐스팅 제안을 받으셨습니다!', type: 'success' })
+  }
+
   /* ───────────────────────────── 타이머 종료 ───────────────────────────────── */
 
   const handleTimeUp = () => {
     if (timeUpHandled) return
     setTimeUpHandled(true)
-    haptic.error()
-    actions.addMessage({
-      id: `farewell-${Date.now()}`,
-      role: 'system',
-      content: getFarewellMessage(state.director.selected!),
-      timestamp: new Date()
-    })
-    showToast({ message: '대화 시간이 종료되었습니다', type: 'info' })
+    
+    // 먼저 캐스팅 메시지 추가
+    addCastingMessage()
+    
+    // 작별 메시지 추가
     setTimeout(() => {
-      setEndModalType('chat')
-      setShowEndModal(true)
-    }, 2000)
+      haptic.error()
+      actions.addMessage({
+        id: `farewell-${Date.now()}`,
+        role: 'system',
+        content: getFarewellMessage(state.director.selected!),
+        timestamp: new Date()
+      })
+      showToast({ message: '대화 시간이 종료되었습니다', type: 'info' })
+      
+      setTimeout(() => {
+        setEndModalType('chat')
+        setShowEndModal(true)
+      }, 2000)
+    }, 1500)
   }
 
   const handleTimeExtend = () =>
@@ -469,6 +524,13 @@ export default function ChatPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-shrink-0">
+                {/* 턴 카운터 */}
+                <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
+                  <span className="text-xs text-white/60">대화</span>
+                  <span className="text-sm font-bold text-yellow-300">{state.chat.currentTurn}</span>
+                  <span className="text-xs text-white/60">/ 15턴</span>
+                </div>
+                
                 <Timer onTimeUp={handleTimeUp} onExtend={handleTimeExtend} />
                 <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-1 rounded-full">
                   <span className="hidden sm:inline text-xs text-white/80 truncate">
@@ -489,7 +551,19 @@ export default function ChatPage() {
                 </div>
                 <div className="flex-shrink-0">
                   <TouchButton
-                    onClick={() => { setEndModalType('all'); setShowEndModal(true) }}
+                    onClick={() => {
+                      // 종료 시에도 캐스팅 메시지 표시
+                      if (state.chat.currentTurn >= 5 && !showCastingMessage) {
+                        addCastingMessage()
+                        setTimeout(() => {
+                          setEndModalType('all')
+                          setShowEndModal(true)
+                        }, 2000)
+                      } else {
+                        setEndModalType('all')
+                        setShowEndModal(true)
+                      }
+                    }}
                     variant="ghost"
                     size="sm"
                     className="text-white hover:text-yellow-300 !inline-flex !items-center !justify-center !gap-2 !px-3 !py-2 !w-auto !min-w-0 !flex-shrink-0 !whitespace-nowrap"
