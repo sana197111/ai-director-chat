@@ -325,7 +325,14 @@ const greetingPrompt = (
     choices: actualQuestions
   }, null, 2)
 
-  return `YOU MUST OUTPUT ONLY JSON. Example format:
+  return `YOU MUST OUTPUT ONLY JSON. 
+
+⚠️ CRITICAL INSTRUCTION for choices:
+1. 첫 번째 질문(id: '1'): 아래 예시의 첫 번째 질문을 그대로 사용 (재미있는 질문)
+2. 두 번째 질문(id: '2'): 대화 맥락에 맞는 자연스러운 질문 생성
+3. 세 번째 질문(id: '3'): 대화 맥락에 맞는 깊이 있는 질문 생성
+
+예시 (첫 번째 질문은 반드시 사용):
 ${jsonExample}
 
 당신은 ${dir.nameKo} 감독입니다.
@@ -429,7 +436,14 @@ const replyPrompt = (
     choices: actualQuestions
   }, null, 2)
 
-  return `YOU MUST OUTPUT ONLY JSON. Example format:
+  return `YOU MUST OUTPUT ONLY JSON. 
+
+⚠️ CRITICAL INSTRUCTION for choices:
+1. 첫 번째 질문(id: '1'): 아래 예시의 첫 번째 질문을 그대로 사용 (재미있는 질문)
+2. 두 번째 질문(id: '2'): 대화 맥락에 맞는 자연스러운 질문 생성
+3. 세 번째 질문(id: '3'): 대화 맥락에 맞는 깊이 있는 질문 생성
+
+예시 (첫 번째 질문은 반드시 사용):
 ${jsonExample}
 
 당신은 ${dir.nameKo} 감독입니다.
@@ -527,8 +541,16 @@ ${history}
    - 자연스러운 마무리와 격려
 
 9. message는 대화 깊이에 따라 100-150자 조절
-10. choices는 대화 단계에 맞는 깊이로 구성
+10. **choices 구성**:
+   - 첫 번째: 예시의 재미있는 질문 그대로 사용
+   - 두 번째: 대화 맥락에 맞는 자연스러운 후속 질문
+   - 세 번째: 약간 깊이 있는 질문
 11. 이모티콘은 감정과 상황에 맞게 다양하게
+
+FINAL REMINDER: 
+- choices[0]은 반드시 예시의 첫 번째 재미있는 질문 사용!
+- choices[1], choices[2]는 대화 맥락에 맞게 AI가 생성
+- 균형있는 질문 구성: 재미 + 맥락 + 깊이
 
 OUTPUT ONLY VALID JSON:`
 }
