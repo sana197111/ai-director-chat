@@ -32,8 +32,16 @@ export interface Session {
 }
 
 // Scenario types
+export type EmotionType = 'joy' | 'anger' | 'sadness' | 'pleasure'
+
 export interface Scenario {
-  cuts: [string, string, string, string]
+  selectedEmotion: EmotionType | null
+  cuts: {
+    joy?: string
+    anger?: string
+    sadness?: string
+    pleasure?: string
+  }
   completed: boolean
   savedAt?: Date
 }

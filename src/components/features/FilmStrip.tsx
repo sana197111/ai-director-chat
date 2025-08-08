@@ -1,14 +1,22 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Plus, Check, Edit3, Sparkles } from 'lucide-react'
+import { Check, Sparkles, Edit3, X, ChevronRight, Lock } from 'lucide-react'
 import { Modal, useToast } from '@/components/ui'
 import { haptic } from '@/lib/haptic'
+import type { EmotionType } from '@/types'
 
 interface FilmStripProps {
-  cuts: [string, string, string, string]
-  onUpdate: (index: number, text: string) => void
+  selectedEmotion: EmotionType | null
+  cuts: {
+    joy?: string
+    anger?: string
+    sadness?: string
+    pleasure?: string
+  }
+  onSelectEmotion: (emotion: EmotionType) => void
+  onUpdate: (emotion: EmotionType, text: string) => void
   onComplete: () => void
   directorTheme?: {
     color: string
@@ -19,7 +27,7 @@ interface FilmStripProps {
 interface CutModalProps {
   isOpen: boolean
   onClose: () => void
-  cutIndex: number
+  emotion: EmotionType
   initialText: string
   onSave: (text: string) => void
 }
@@ -27,7 +35,7 @@ interface CutModalProps {
 const CutModal: React.FC<CutModalProps> = ({
   isOpen,
   onClose,
-  cutIndex,
+  emotion,
   initialText,
   onSave
 }) => {
@@ -48,49 +56,48 @@ const CutModal: React.FC<CutModalProps> = ({
     }
   }
 
-  const cutTitles = [
-    '#01 Joy_기빴던 장면',
-    '#02 Anger_화났던 장면',
-    '#03 Sadness_슬펐던 장면',
-    '#04 Pleasure_즐거웠던 장면'
-  ]
-
-  const placeholders = [
-    '기빴던 순간의 상황과 대사를 입력해주세요...',
-    '화났던 순간의 상황과 대사를 입력해주세요...',
-    '슬펐던 순간의 상황과 대사를 입력해주세요...',
-    '즐거웠던 순간의 상황과 대사를 입력해주세요...'
-  ]
-
-  // 각 감정별로 다른 예시
-  const examples = [
-    {
-      // Joy - 기쁨
-      situation: '초등학교 운동회 50m 달리기에서 2등으로 결승선을 끊자 선생님이 목에 메달을 걸어주던 순간.',
-      dialogue: '"이거 들고 바로 엄마한테 뛰어가야지!"'
+  const emotionData = {
+    joy: {
+      title: '#01 Joy_기뻤던 장면',
+      placeholder: '기뻤던 순간의 상황과 대사를 입력해주세요...',
+      example: {
+        situation: '초등학교 운동회 50m 달리기에서 2등으로 결승선을 끊자 선생님이 목에 메달을 걸어주던 순간.',
+        dialogue: '"이거 들고 바로 엄마한테 뛰어가야지!"'
+      }
     },
-    {
-      // Anger - 화남
-      situation: '중학생 때 애지중지 모은 스티커 앨범을 동생이 허락도 없이 친구들에게 나눠주고 "괜찮지?"라며 웃을 때.',
-      dialogue: '"내 보물을 왜 마음대로 가져가?"'
+    anger: {
+      title: '#02 Anger_화났던 장면',
+      placeholder: '화났던 순간의 상황과 대사를 입력해주세요...',
+      example: {
+        situation: '중학생 때 애지중지 모은 스티커 앨범을 동생이 허락도 없이 친구들에게 나눠주고 "괜찮지?"라며 웃을 때.',
+        dialogue: '"내 보물을 왜 마음대로 가져가?"'
+      }
     },
-    {
-      // Sadness - 슬픔
-      situation: '대학교 겨울방학 전날, 기숙사 앞 버스 정류장에서 연인이 "우리 그만하자"는 말을 남기고 버스에 올라타 멀어지던 밤.',
-      dialogue: '"추억도 저 버스랑 같이 떠나는구나…"'
+    sadness: {
+      title: '#03 Sadness_슬펐던 장면',
+      placeholder: '슬펐던 순간의 상황과 대사를 입력해주세요...',
+      example: {
+        situation: '대학교 겨울방학 전날, 기숙사 앞 버스 정류장에서 연인이 "우리 그만하자"는 말을 남기고 버스에 올라타 멀어지던 밤.',
+        dialogue: '"추억도 저 버스랑 같이 떠나는구나…"'
+      }
     },
-    {
-      // Pleasure - 즐거움
-      situation: '취업 준비로 지친 어느 비 오는 토요일 밤, 친구가 편의점 우산 두 개를 들고 찾아와 빗속을 산책하며 끝없이 수다 떨던 시간.',
-      dialogue: '"빗소리 덕분에 마음도 말끔해진다."'
+    pleasure: {
+      title: '#04 Pleasure_즐거웠던 장면',
+      placeholder: '즐거웠던 순간의 상황과 대사를 입력해주세요...',
+      example: {
+        situation: '취업 준비로 지친 어느 비 오는 토요일 밤, 친구가 편의점 우산 두 개를 들고 찾아와 빗속을 산책하며 끝없이 수다 떨던 시간.',
+        dialogue: '"빗소리 덕분에 마음도 말끔해진다."'
+      }
     }
-  ]
+  }
+
+  const data = emotionData[emotion]
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${cutTitles[cutIndex]} 작성`}
+      title={`${data.title} 작성`}
       size="lg"
     >
       <div className="space-y-4">
@@ -102,10 +109,10 @@ const CutModal: React.FC<CutModalProps> = ({
             <div><strong>예시 형식:</strong></div>
             <div className="bg-white rounded p-3 text-xs space-y-1">
               <div>
-                <strong>상황:</strong> {examples[cutIndex].situation}
+                <strong>상황:</strong> {data.example.situation}
               </div>
               <div>
-                <strong>대사:</strong> {examples[cutIndex].dialogue}
+                <strong>대사:</strong> {data.example.dialogue}
               </div>
             </div>
           </div>
@@ -121,12 +128,11 @@ const CutModal: React.FC<CutModalProps> = ({
                 setCharCount(newText.length)
               }
             }}
-            placeholder={placeholders[cutIndex]}
+            placeholder={data.placeholder}
             className="w-full h-48 p-4 border-2 border-gray-200 rounded-lg resize-none focus:border-yellow-500 focus:outline-none transition-colors"
             autoFocus
           />
           
-          {/* 문자 수 카운터 */}
           <div className={`absolute bottom-2 right-2 text-sm ${
             charCount > maxChars * 0.9 ? 'text-red-500' : 'text-gray-400'
           }`}>
@@ -161,217 +167,401 @@ const CutModal: React.FC<CutModalProps> = ({
 }
 
 export const FilmStrip: React.FC<FilmStripProps> = ({
+  selectedEmotion,
   cuts,
+  onSelectEmotion,
   onUpdate,
   onComplete,
   directorTheme
 }) => {
-  const [selectedCut, setSelectedCut] = useState<number | null>(null)
-  const [completedCuts, setCompletedCuts] = useState<boolean[]>([false, false, false, false])
+  const [showModal, setShowModal] = useState(false)
+  const [hoveredCard, setHoveredCard] = useState<EmotionType | null>(null)
   const { showToast } = useToast()
+  const hasCalledComplete = useRef(false)
 
-  useEffect(() => {
-    const newCompletedCuts = cuts.map(cut => cut.trim().length > 0)
-    setCompletedCuts(newCompletedCuts)
-  }, [cuts])
-
-  useEffect(() => {
-    // 모든 컷이 완성되었는지 체크
-    if (completedCuts.every(completed => completed) && cuts.every(cut => cut.trim().length > 0)) {
-      onComplete()
+  const emotions: { 
+    type: EmotionType
+    label: string
+    emoji: string
+    gradient: string
+    bgPattern: string
+    description: string
+  }[] = [
+    { 
+      type: 'joy', 
+      label: '기쁨', 
+      emoji: '😊', 
+      gradient: 'from-yellow-400 via-amber-400 to-orange-400',
+      bgPattern: 'bg-gradient-to-br from-yellow-50 to-orange-50',
+      description: '가장 행복했던 순간'
+    },
+    { 
+      type: 'anger', 
+      label: '분노', 
+      emoji: '😡', 
+      gradient: 'from-red-500 via-rose-500 to-pink-500',
+      bgPattern: 'bg-gradient-to-br from-red-50 to-pink-50',
+      description: '가장 화났던 순간'
+    },
+    { 
+      type: 'sadness', 
+      label: '슬픔', 
+      emoji: '😢', 
+      gradient: 'from-blue-500 via-indigo-500 to-purple-500',
+      bgPattern: 'bg-gradient-to-br from-blue-50 to-indigo-50',
+      description: '가장 슬펐던 순간'
+    },
+    { 
+      type: 'pleasure', 
+      label: '즐거움', 
+      emoji: '😄', 
+      gradient: 'from-green-400 via-emerald-400 to-teal-400',
+      bgPattern: 'bg-gradient-to-br from-green-50 to-teal-50',
+      description: '가장 즐거웠던 순간'
     }
-  }, [completedCuts, cuts])
+  ]
 
-  const handleCutClick = (index: number) => {
+  // 완료 처리 - 무한 루프 방지
+  useEffect(() => {
+    if (selectedEmotion && cuts[selectedEmotion] && cuts[selectedEmotion]!.trim().length > 0) {
+      if (!hasCalledComplete.current) {
+        onComplete()
+        hasCalledComplete.current = true
+      }
+    } else {
+      hasCalledComplete.current = false
+    }
+  }, [selectedEmotion, cuts])
+
+  const handleCardClick = (emotion: EmotionType) => {
+    // 이미 감정이 선택되어 있고 내용이 있는 경우
+    if (selectedEmotion && cuts[selectedEmotion]) {
+      // 같은 감정 클릭 시 수정 모달 열기
+      if (selectedEmotion === emotion) {
+        setShowModal(true)
+      } else {
+        // 다른 감정 클릭 시 경고
+        showToast({
+          message: '다른 감정을 선택하려면 먼저 현재 감정을 초기화해주세요',
+          type: 'warning',
+          duration: 3000
+        })
+      }
+      return
+    }
+
+    // 새로운 감정 선택
     haptic.light()
-    setSelectedCut(index)
+    onSelectEmotion(emotion)
+    setTimeout(() => setShowModal(true), 300)
   }
 
-  const handleSaveCut = (index: number, text: string) => {
-    onUpdate(index, text)
-    showToast({
-      message: '자동 저장되었습니다',
-      type: 'success',
-      duration: 2000
-    })
+  const handleSaveCut = (text: string) => {
+    if (selectedEmotion) {
+      onUpdate(selectedEmotion, text)
+      showToast({
+        message: '인생 My컷이 저장되었습니다',
+        type: 'success',
+        duration: 2000
+      })
+    }
   }
 
-  const getProgress = () => {
-    return completedCuts.filter(completed => completed).length
+  const handleResetEmotion = () => {
+    if (selectedEmotion) {
+      haptic.light()
+      onUpdate(selectedEmotion, '')
+      showToast({
+        message: '초기화되었습니다. 다른 감정을 선택할 수 있습니다',
+        type: 'info',
+        duration: 2000
+      })
+    }
   }
+
+  const isCompleted = selectedEmotion && cuts[selectedEmotion] && cuts[selectedEmotion]!.trim().length > 0
+  const isLocked = isCompleted // 완료되면 다른 카드 잠금
 
   return (
     <>
-      <div className="w-full max-w-4xl mx-auto">
-        {/* 진행률 표시 */}
+      <div className="w-full max-w-5xl mx-auto">
+        {/* 헤더 */}
         <motion.div
-          className="mb-8"
+          className="text-center mb-10"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">
-              {getProgress()}/4 컷 완성
-            </span>
-            {getProgress() === 4 && (
-              <motion.span
-                className="flex items-center gap-1 text-sm text-green-600"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <Check className="w-4 h-4" />
-                모든 컷 완성!
-              </motion.span>
-            )}
-          </div>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-yellow-500 to-yellow-600"
-              initial={{ width: 0 }}
-              animate={{ width: `${(getProgress() / 4) * 100}%` }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-            />
-          </div>
+          <h2 className="text-3xl font-bold text-white mb-3">
+            인생의 한 장면을 선택해주세요
+          </h2>
+          <p className="text-gray-400 text-lg">
+            {isCompleted 
+              ? `${emotions.find(e => e.type === selectedEmotion)?.label} 장면이 선택되었습니다`
+              : '오늘 가장 이야기하고 싶은 감정 하나를 선택하고 작성해주세요'
+            }
+          </p>
         </motion.div>
 
-        {/* 필름 스트립 */}
-        <div className="relative">
-          {/* 필름 구멍 효과 - 더 정교한 디자인 */}
-          <div className="absolute -top-6 left-0 right-0 h-6 flex justify-between px-4">
-            {[...Array(12)].map((_, i) => (
-              <div
-                key={i}
-                className="w-2 h-4 bg-gray-800 rounded-sm shadow-md"
-                style={{ 
-                  transform: i % 2 === 0 ? 'translateY(1px)' : 'translateY(-1px)',
-                  opacity: 0.8 + (i % 3) * 0.1
-                }}
-              />
-            ))}
-          </div>
-          <div className="absolute -bottom-6 left-0 right-0 h-6 flex justify-between px-4">
-            {[...Array(12)].map((_, i) => (
-              <div
-                key={i}
-                className="w-2 h-4 bg-gray-800 rounded-sm shadow-md"
-                style={{ 
-                  transform: i % 2 === 0 ? 'translateY(-1px)' : 'translateY(1px)',
-                  opacity: 0.8 + (i % 3) * 0.1
-                }}
-              />
-            ))}
-          </div>
+        {/* 감정 카드 그리드 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+          {emotions.map((emotion, index) => {
+            const isSelected = selectedEmotion === emotion.type
+            const hasContent = cuts[emotion.type] && cuts[emotion.type]!.trim().length > 0
+            const isDisabled = isLocked && !isSelected // 완료 시 선택되지 않은 카드 비활성화
+            const isHovered = hoveredCard === emotion.type
+            
+            return (
+              <motion.div
+                key={emotion.type}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onMouseEnter={() => !isDisabled && setHoveredCard(emotion.type)}
+                onMouseLeave={() => setHoveredCard(null)}
+              >
+                <motion.button
+                  className={`
+                    relative w-full h-64 rounded-2xl overflow-hidden
+                    transition-all duration-300 group
+                    ${isSelected 
+                      ? 'ring-4 ring-yellow-400 ring-offset-4 ring-offset-gray-900' 
+                      : isDisabled
+                      ? 'opacity-40 cursor-not-allowed'
+                      : 'hover:ring-2 hover:ring-gray-500 hover:ring-offset-2 hover:ring-offset-gray-900'
+                    }
+                  `}
+                  whileHover={!isDisabled ? { scale: 1.02 } : {}}
+                  whileTap={!isDisabled ? { scale: 0.98 } : {}}
+                  onClick={() => !isDisabled && handleCardClick(emotion.type)}
+                  disabled={isDisabled}
+                >
+                  {/* 배경 그라디언트 */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${emotion.gradient} ${isDisabled ? 'opacity-50' : 'opacity-90'}`} />
+                  
+                  {/* 패턴 오버레이 */}
+                  <div className="absolute inset-0 opacity-20">
+                    <div className="absolute inset-0" style={{
+                      backgroundImage: `radial-gradient(circle at 20% 50%, transparent 20%, rgba(255,255,255,0.3) 20.5%, rgba(255,255,255,0.3) 30%, transparent 30.5%)`,
+                      backgroundSize: '20px 20px'
+                    }} />
+                  </div>
 
-          {/* 컷 그리드 - 필름 스트립 느낌 강화 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border-4 border-gray-700 shadow-2xl">
-            <AnimatePresence>
-              {cuts.map((cut, index) => {
-                const isCompleted = completedCuts[index]
-                
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <motion.button
-                      className={`
-                        relative w-full aspect-[3/4] rounded-xl overflow-hidden
-                        transition-all duration-300 group shadow-lg
-                        ${isCompleted 
-                          ? 'ring-3 ring-green-400 ring-offset-3 ring-offset-gray-900 shadow-green-500/20' 
-                          : 'ring-3 ring-gray-600 ring-offset-3 ring-offset-gray-900 hover:ring-yellow-500/50 hover:shadow-yellow-500/20'
-                        }
-                      `}
-                      onClick={() => handleCutClick(index)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                  {/* 잠금 표시 */}
+                  {isDisabled && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-20">
+                      <Lock className="w-8 h-8 text-white/60" />
+                    </div>
+                  )}
+
+                  {/* 선택/완료 배지 */}
+                  <AnimatePresence>
+                    {isSelected && isCompleted && (
+                      <motion.div
+                        className="absolute top-3 right-3 z-10"
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 180 }}
+                        transition={{ type: "spring", stiffness: 200 }}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <Check className="w-5 h-5 text-white" />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* 컨텐츠 */}
+                  <div className="relative h-full flex flex-col items-center justify-center p-6 z-10">
+                    {/* 이모지 */}
+                    <motion.div 
+                      className="text-6xl mb-4"
+                      animate={{ 
+                        scale: isHovered && !isDisabled ? 1.2 : 1,
+                        rotate: isHovered && !isDisabled ? [0, -10, 10, -10, 0] : 0
+                      }}
+                      transition={{ duration: 0.5 }}
                     >
-                      {/* 배경 - 필름 프레임 느낌 */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-750 to-gray-700" />
-                      <div 
-                        className="absolute inset-1 bg-gradient-to-br from-gray-700 to-gray-600 rounded-lg"
-                        style={isCompleted && directorTheme ? {
-                          background: directorTheme.gradient,
-                          opacity: 0.4
-                        } : {}}
-                      />
-                      
-                      {/* 컷 번호 - 필름 라벨 스타일 */}
-                      <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-md px-3 py-1 border border-gray-600">
-                        <span className="text-xs text-yellow-300 font-bold tracking-wider">
-                          #{index + 1}
-                        </span>
-                      </div>
+                      {emotion.emoji}
+                    </motion.div>
 
-                      {/* 콘텐츠 */}
-                      <div className="relative h-full flex items-center justify-center p-4">
-                        {isCompleted ? (
-                          <div className="text-center space-y-2">
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto"
-                            >
-                              {['😊', '😡', '😢', '😄'][index]}
-                            </motion.div>
-                            <div className="text-xs text-white/80">
-                              <p className="font-medium mb-1">{['기빴던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
-                              <p className="line-clamp-2 text-white/60">
-                                {cut.substring(0, 40)}...
-                              </p>
-                            </div>
-                            <p className="text-xs text-white/60 group-hover:text-white/80 transition-colors">
-                              탭하여 수정
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="text-center space-y-3">
-                            <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center mx-auto group-hover:bg-gray-500 transition-colors text-2xl">
-                              {['😊', '😡', '😢', '😄'][index]}
-                            </div>
-                            <div className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
-                              <p className="font-medium">{['기빴던 장면', '화났던 장면', '슬펐던 장면', '즐거웠던 장면'][index]}</p>
-                              <p className="text-xs mt-1">탭하여 작성</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                    {/* 레이블 */}
+                    <h3 className="text-xl font-bold text-white mb-1">
+                      {emotion.label}
+                    </h3>
+                    
+                    {/* 설명 */}
+                    <p className="text-xs text-white/80 mb-3">
+                      {emotion.description}
+                    </p>
 
-                      {/* 호버 효과 */}
-                      <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors" />
-                    </motion.button>
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
-          </div>
+                    {/* 상태 표시 */}
+                    {isSelected && hasContent ? (
+                      <span className="text-xs text-white/90 bg-white/20 px-3 py-1 rounded-full">
+                        작성 완료
+                      </span>
+                    ) : !isDisabled ? (
+                      <span className="text-xs text-white/60">
+                        {isSelected ? '작성하기' : '선택하기'}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* 호버 효과 */}
+                  <motion.div 
+                    className="absolute inset-0 bg-white pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: isHovered && !isDisabled ? 0.1 : 0 }}
+                  />
+                </motion.button>
+              </motion.div>
+            )
+          })}
         </div>
 
-        {/* 완성 시 이펙트 */}
-        {getProgress() === 4 && (
+        {/* 진행 상태 및 액션 버튼 */}
+        {selectedEmotion && (
           <motion.div
-            className="mt-6 text-center"
+            className="mb-8"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-700 text-black rounded-full">
-              <Sparkles className="w-5 h-5" />
-              <span className="font-medium">준비 완료! 대화를 시작할 수 있습니다</span>
+            <div className="bg-gray-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-400">선택된 감정:</span>
+                  <span className="text-white font-medium flex items-center gap-2 text-lg">
+                    {emotions.find(e => e.type === selectedEmotion)?.emoji}
+                    {emotions.find(e => e.type === selectedEmotion)?.label}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {isCompleted && (
+                    <>
+                      <motion.button
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        onClick={() => setShowModal(true)}
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        <span className="text-sm">수정하기</span>
+                      </motion.button>
+                      
+                      <motion.button
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 }}
+                        onClick={handleResetEmotion}
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">다른 감정 선택</span>
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 작성한 내용 미리보기 */}
+              {isCompleted && cuts[selectedEmotion] && (
+                <motion.div
+                  className="mb-4 p-4 bg-gray-900 rounded-lg"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg">{emotions.find(e => e.type === selectedEmotion)?.emoji}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-gray-400 mb-2">작성한 내용</h4>
+                      <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        {cuts[selectedEmotion].length > 200 
+                          ? `${cuts[selectedEmotion].substring(0, 200)}...` 
+                          : cuts[selectedEmotion]
+                        }
+                      </p>
+                      {cuts[selectedEmotion].length > 200 && (
+                        <button
+                          onClick={() => setShowModal(true)}
+                          className="text-xs text-blue-400 hover:text-blue-300 mt-2"
+                        >
+                          전체 내용 보기 →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 안내 메시지 */}
+              {isCompleted && (
+                <motion.div
+                  className="p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <p className="text-xs text-yellow-400">
+                    💡 선택한 감정의 장면만 AI 감독과의 대화에 반영됩니다. 
+                    다른 감정을 선택하려면 "다른 감정 선택" 버튼을 클릭하세요.
+                  </p>
+                </motion.div>
+              )}
+
+              {/* 작성 대기 중 */}
+              {!isCompleted && (
+                <motion.div
+                  className="p-4 bg-gray-900 rounded-lg text-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <p className="text-gray-400 text-sm">
+                    선택한 감정의 장면을 작성해주세요
+                  </p>
+                </motion.div>
+              )}
             </div>
           </motion.div>
         )}
+
+        {/* 완료 메시지 */}
+        <AnimatePresence>
+          {isCompleted && (
+            <motion.div
+              className="text-center"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+            >
+              <motion.div 
+                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full shadow-lg"
+                animate={{ 
+                  boxShadow: [
+                    '0 0 20px rgba(34, 197, 94, 0.3)',
+                    '0 0 40px rgba(34, 197, 94, 0.5)',
+                    '0 0 20px rgba(34, 197, 94, 0.3)'
+                  ]
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Sparkles className="w-5 h-5" />
+                <span className="font-medium">감독 선택 단계로 진행할 수 있습니다</span>
+                <ChevronRight className="w-5 h-5" />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* 입력 모달 */}
-      {selectedCut !== null && (
+      {selectedEmotion && (
         <CutModal
-          isOpen={true}
-          onClose={() => setSelectedCut(null)}
-          cutIndex={selectedCut}
-          initialText={cuts[selectedCut]}
-          onSave={(text) => handleSaveCut(selectedCut, text)}
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          emotion={selectedEmotion}
+          initialText={cuts[selectedEmotion] || ''}
+          onSave={handleSaveCut}
         />
       )}
     </>

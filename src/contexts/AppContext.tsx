@@ -3,7 +3,7 @@
 'use client'
 
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react'
-import { AppState, DirectorType, Message, Choice } from '@/types'
+import { AppState, DirectorType, Message, Choice, EmotionType } from '@/types'
 import { storage } from '@/lib/storage'
 import { directors } from '@/constants/directors'
 
@@ -35,7 +35,8 @@ const initialState: AppState = {
     data: null
   },
   scenario: {
-    cuts: ['', '', '', ''],
+    selectedEmotion: null,
+    cuts: {},
     completed: false
   },
   chat: {
@@ -54,7 +55,8 @@ type AppAction =
   | { type: 'SET_STEP'; payload: AppState['session']['currentStep'] }
   | { type: 'SELECT_DIRECTOR'; payload: DirectorType }
   | { type: 'CLEAR_DIRECTOR' }
-  | { type: 'UPDATE_SCENARIO'; payload: { index: number; text: string } }
+  | { type: 'SELECT_EMOTION'; payload: EmotionType }
+  | { type: 'UPDATE_SCENARIO'; payload: { emotion: EmotionType; text: string } }
   | { type: 'COMPLETE_SCENARIO' }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'UPDATE_TIME'; payload: number }
@@ -123,14 +125,30 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       }
 
+    case 'SELECT_EMOTION':
+      return {
+        ...state,
+        scenario: {
+          ...state.scenario,
+          selectedEmotion: action.payload
+        },
+        session: {
+          ...state.session,
+          lastActivity: new Date()
+        }
+      }
+
     case 'UPDATE_SCENARIO':
-      const newCuts = [...state.scenario.cuts] as [string, string, string, string]
-      newCuts[action.payload.index] = action.payload.text
-      const isCompleted = newCuts.every(cut => cut.trim().length > 0)
+      const newCuts = {
+        ...state.scenario.cuts,
+        [action.payload.emotion]: action.payload.text
+      }
+      const isCompleted = action.payload.text.trim().length > 0
       
       return {
         ...state,
         scenario: {
+          selectedEmotion: state.scenario.selectedEmotion,
           cuts: newCuts,
           completed: isCompleted,
           savedAt: new Date()
@@ -251,7 +269,8 @@ interface AppContextValue {
     setStep: (step: AppState['session']['currentStep']) => void
     selectDirector: (director: DirectorType) => void
     clearDirector: () => void
-    updateScenario: (index: number, text: string) => void
+    selectEmotion: (emotion: EmotionType) => void
+    updateScenario: (emotion: EmotionType, text: string) => void
     completeScenario: () => void
     addMessage: (message: Message) => void
     updateTime: (time: number) => void
@@ -337,7 +356,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStep: (step) => dispatch({ type: 'SET_STEP', payload: step }),
     selectDirector: (director) => dispatch({ type: 'SELECT_DIRECTOR', payload: director }),
     clearDirector: () => dispatch({ type: 'CLEAR_DIRECTOR' }),
-    updateScenario: (index, text) => dispatch({ type: 'UPDATE_SCENARIO', payload: { index, text } }),
+    selectEmotion: (emotion) => dispatch({ type: 'SELECT_EMOTION', payload: emotion }),
+    updateScenario: (emotion, text) => dispatch({ type: 'UPDATE_SCENARIO', payload: { emotion, text } }),
     completeScenario: () => dispatch({ type: 'COMPLETE_SCENARIO' }),
     addMessage: (message: Message) => dispatch({ type: 'ADD_MESSAGE', payload: message }),
     updateTime: (time) => dispatch({ type: 'UPDATE_TIME', payload: time }),

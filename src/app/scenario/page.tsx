@@ -34,7 +34,7 @@ export default function ScenarioInputPage() {
   const handleNext = () => {
     if (!state.scenario.completed) {
       showToast({
-        message: '모든 장면을 작성해주세요',
+        message: '선택한 감정의 장면을 작성해주세요',
         type: 'warning'
       })
       haptic.warning()
@@ -132,7 +132,7 @@ export default function ScenarioInputPage() {
                 <div className="flex-1">
                   <h3 className="font-medium text-blue-900 mb-1">1부스에서 작성한 인생 My컷을 입력해주세요</h3>
                   <p className="text-sm text-blue-700 mb-3">
-                    못자에서 한 인생의 중요한 순간들을 4개의 장면으로 나누어 입력해주세요.
+                    오늘 가장 이야기하고 싶은 감정을 하나 선택하여 그 장면을 작성해주세요.
                     감독님이 이를 바탕으로 맞춤형 연출 조언을 드립니다.
                   </p>
                   <div className="text-xs text-blue-600 mb-2">
@@ -160,7 +160,9 @@ export default function ScenarioInputPage() {
           transition={{ delay: 0.4, duration: 0.5 }}
         >
           <FilmStrip
+            selectedEmotion={state.scenario.selectedEmotion}
             cuts={state.scenario.cuts}
+            onSelectEmotion={actions.selectEmotion}
             onUpdate={actions.updateScenario}
             onComplete={handleCompleteScenario}
             directorTheme={directorTheme}

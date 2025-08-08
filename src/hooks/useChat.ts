@@ -142,9 +142,15 @@ export function useChat(options: UseChatOptions = {}) {
         
         while (attempts < maxRetries) {
           try {
+            // 선택된 감정과 컨텐츠 전달
+            const selectedEmotion = state.scenario.selectedEmotion
+            const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
+            
             response = await generateDirectorResponse(
               state.director.selected!,
-              state.scenario.cuts,
+              selectedEmotion && selectedContent ? 
+                { selectedEmotion, content: selectedContent } : 
+                ['', '', '', ''] as [string, string, string, string], // 폴백
               content,
               state.chat.messages.map(msg => ({
                 role: msg.role,
@@ -236,6 +242,7 @@ export function useChat(options: UseChatOptions = {}) {
     chatState.isLoading,
     chatState.isOfflineMode,
     state.director.selected,
+    state.scenario.selectedEmotion,
     state.scenario.cuts,
     state.chat.messages,
     state.chat.currentTurn,

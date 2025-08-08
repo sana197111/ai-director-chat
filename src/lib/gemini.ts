@@ -6,7 +6,7 @@ import {
   HarmBlockThreshold,
   SchemaType
 } from '@google/generative-ai'
-import type { DirectorType, Choice } from '@/types'
+import type { DirectorType, Choice, EmotionType } from '@/types'
 import {
   directors,
   directorPrompts,
@@ -102,12 +102,67 @@ function jsonModel(model = 'gemini-2.5-flash') {
 
 /* ═══════════════ 3. 강력한 후처리 파이프라인 ═══════════════ */
 
+// 개선된 choices 검증 함수
+function validateChoices(choices: any): Choice[] | null {
+  if (!Array.isArray(choices) || choices.length !== 3) {
+    console.error('[Gemini] Invalid choices array:', choices)
+    return null
+  }
+  
+  // 예시 텍스트 감지
+  const invalidTexts = [
+    '질문 예시 1', '질문 예시 2', '질문 예시 3',
+    '예시 질문 1', '예시 질문 2', '예시 질문 3',
+    'text: "질문', 'text": "질문'
+  ]
+  
+  const validChoices = choices.map((choice, idx) => {
+    // 기본 검증
+    if (!choice || typeof choice !== 'object') {
+      console.error(`[Gemini] Invalid choice at index ${idx}:`, choice)
+      return null
+    }
+    
+    // ID 검증 및 수정
+    const id = choice.id || String(idx + 1)
+    
+    // 텍스트 검증
+    let text = choice.text
+    if (!text || typeof text !== 'string' || text.trim() === '') {
+      console.error(`[Gemini] Invalid text at index ${idx}:`, text)
+      return null
+    }
+    
+    // 예시 텍스트 검사
+    if (invalidTexts.some(invalid => text.includes(invalid))) {
+      console.error(`[Gemini] Example text detected at index ${idx}:`, text)
+      return null
+    }
+    
+    // 아이콘 처리
+    const icon = choice.icon || ''
+    
+    return { id, text: text.trim(), icon }
+  })
+  
+  // 모든 choice가 유효한지 확인
+  if (validChoices.some(c => c === null)) {
+    return null
+  }
+  
+  return validChoices as Choice[]
+}
+
 function extractJSON(text: string): any {
   // 1. 직접 파싱 시도
   try {
     const trimmed = text.trim()
-    return JSON.parse(trimmed)
-  } catch {}
+    const parsed = JSON.parse(trimmed)
+    console.log('[Gemini] Direct JSON parse success')
+    return parsed
+  } catch (e) {
+    console.log('[Gemini] Direct JSON parse failed, trying patterns...')
+  }
   
   // 2. 다양한 패턴으로 JSON 추출
   const patterns = [
@@ -124,8 +179,12 @@ function extractJSON(text: string): any {
     if (match) {
       try {
         const jsonStr = match[1] || match[0]
-        return JSON.parse(jsonStr)
-      } catch {}
+        const parsed = JSON.parse(jsonStr)
+        console.log('[Gemini] Pattern JSON parse success with pattern:', pattern)
+        return parsed
+      } catch (e) {
+        console.log('[Gemini] Pattern parse failed:', pattern)
+      }
     }
   }
   
@@ -141,9 +200,11 @@ function extractJSON(text: string): any {
     .replace(/\n\s*\n/g, '\n')  // 여러 줄바꿈 정리
   
   try {
-    return JSON.parse(cleaned)
+    const parsed = JSON.parse(cleaned)
+    console.log('[Gemini] Cleaned JSON parse success')
+    return parsed
   } catch {
-    console.error('Failed to extract JSON from:', text.substring(0, 200))
+    console.error('[Gemini] All JSON extraction attempts failed for:', text.substring(0, 200))
     return null
   }
 }
@@ -153,22 +214,31 @@ function extractJSON(text: string): any {
 async function askWithRetry(
   model: ReturnType<typeof jsonModel>,
   prompt: string,
-  maxTry = 5  // 3 → 5로 증가
+  maxTry = 5,
+  validateFn?: (data: any) => boolean
 ) {
   let lastError: any = null
   
   for (let i = 0; i < maxTry; i++) {
     try {
+      console.log(`[Gemini] Attempt ${i + 1}/${maxTry}`)
+      
       // 재시도마다 프롬프트 강화
       let enhancedPrompt = prompt
       
       if (i === 1) {
-        enhancedPrompt = `IMPORTANT: Output ONLY valid JSON, no other text.
+        enhancedPrompt = `CRITICAL: You MUST output ONLY valid JSON. No explanations, no markdown, no backticks.
+The JSON must have exactly these fields:
+- message: string (your response)
+- choices: array of exactly 3 objects with {id: string, text: string, icon: string}
+
 ${prompt}`
       } else if (i === 2) {
         enhancedPrompt = `YOU MUST OUTPUT ONLY VALID JSON.
 Start with { and end with }
 NO BACKTICKS. NO MARKDOWN. NO EXPLANATIONS.
+EXACTLY 3 CHOICES WITH REAL QUESTIONS, NOT EXAMPLES.
+
 ${prompt}`
       } else if (i >= 3) {
         // Temperature 조정을 위한 모델 재생성
@@ -190,7 +260,11 @@ ${prompt}`
         
         const data = extractJSON(text)
         if (data && data.message && Array.isArray(data.choices)) {
-          console.log('[Gemini] JSON parsed successfully with adjusted model')
+          // 추가 검증
+          if (validateFn && !validateFn(data)) {
+            throw new Error('Validation failed')
+          }
+          console.log('[Gemini] JSON parsed and validated successfully with adjusted model')
           return data
         }
       } else {
@@ -200,12 +274,16 @@ ${prompt}`
         
         const data = extractJSON(text)
         if (data && data.message && Array.isArray(data.choices)) {
-          console.log('[Gemini] JSON parsed successfully')
+          // 추가 검증
+          if (validateFn && !validateFn(data)) {
+            throw new Error('Validation failed')
+          }
+          console.log('[Gemini] JSON parsed and validated successfully')
           return data
         }
       }
       
-      throw new Error('Invalid JSON structure')
+      throw new Error('Invalid JSON structure or validation failed')
       
     } catch (e) {
       lastError = e
@@ -241,19 +319,15 @@ const greetingPrompt = (
   // 감독별 말투 설정
   const speechStyle = ['bong', 'miyazaki', 'docter'].includes(director) ? '반말' : '존댓말'
 
-  // JSON 예시를 먼저 제공
+  // 실제 질문 예시로 변경
+  const actualQuestions = generateScenarioQuestions(director, scenario, 'early')
   const jsonExample = JSON.stringify({
-    message: "인사말 예시입니다. 두 장면을 언급합니다.",
-    choices: [
-      { id: "1", text: "질문 예시 1", icon: "😊" },
-      { id: "2", text: "질문 예시 2", icon: "💭" },
-      { id: "3", text: "질문 예시 3", icon: "✨" }
-    ]
-  })
+    message: `안녕하세요! "${scenario[0]}" 이 장면이 정말 인상적이네요. 함께 이야기 나눠볼까요?`,
+    choices: actualQuestions
+  }, null, 2)
 
-  return `OUTPUT FORMAT: ${jsonExample}
-START YOUR RESPONSE WITH { AND END WITH }
-NO OTHER TEXT ALLOWED. ONLY JSON.
+  return `YOU MUST OUTPUT ONLY JSON. Example format:
+${jsonExample}
 
 당신은 ${dir.nameKo} 감독입니다. 당신의 대표작은 ${dir.films.slice(0, 2).join(', ')} 등입니다.
 ${speechStyle}로 조언해주고, 대답하세요.
@@ -267,10 +341,11 @@ ${scenarioText}
 3. 그 장면들을 당신의 영화 작품과 연결지어 설명하세요
 4. 시나리오에 있는 내용만 사용하세요. 추가로 상상하지 마세요
 5. 5-7문장으로 따뜻하게 인사하세요
-6. 2-3문장마다 \n\n으로 줄바꿈을 하세요 (두 번 줄바꿈)
+6. message에서 2-3문장마다 \\n\\n으로 줄바꿈을 하세요 (두 번 줄바꿈)
 7. 답변 중간이나 마지막에 자연스럽게 이모티콘 2-3개를 넣으세요
+8. choices는 반드시 배우가 감독에게 묻는 실제 질문 3개여야 합니다 (예시 텍스트 금지)
 
-JSON:`
+OUTPUT ONLY VALID JSON:`
 }
 
 const replyPrompt = (
@@ -335,18 +410,16 @@ const replyPrompt = (
     scenarioIndex = idx
   }
 
-  // JSON 예시
+  // 실제 질문으로 JSON 예시 생성
+  const stage = conversationDepth === 0 ? 'early' : conversationDepth === 1 ? 'mid' : 'late'
+  const actualQuestions = generateScenarioQuestions(director, scenario, stage)
   const jsonExample = JSON.stringify({
-    message: "답변 예시",
-    choices: [
-      { id: "1", text: "후속 질문 1", icon: "" },
-      { id: "2", text: "후속 질문 2", icon: "" },
-      { id: "3", text: "후속 질문 3", icon: "" }
-    ]
-  })
+    message: "감독의 답변입니다.",
+    choices: actualQuestions
+  }, null, 2)
 
-  return `OUTPUT FORMAT: ${jsonExample}
-ONLY JSON ALLOWED. NO OTHER TEXT.
+  return `YOU MUST OUTPUT ONLY JSON. Example format:
+${jsonExample}
 
 당신은 ${dir.nameKo} 감독입니다. 대표작: ${dir.films.slice(0, 2).join(', ')}
 ${speechStyle}로 대답하세요.
@@ -389,11 +462,12 @@ ${history}
    - 이전 대화를 자연스럽게 이어받아 발전
    - "아까 말한", "그래서", "그런 의미에서" 등 연결어 사용
 
-5. 2-4문장으로 답변하되, 대화가 깊어질수록 조금 더 길게
-6. 2문장마다 줄바꿈
+5. message에서 2-4문장으로 답변하되, 대화가 깊어질수록 조금 더 길게
+6. message에서 2문장마다 \\n\\n으로 줄바꿈
 7. 마지막에 감독 특성에 맞는 이모티콘 하나
+8. choices는 반드시 배우가 감독에게 묻는 실제 질문 3개 (예시 텍스트 절대 금지)
 
-JSON:`
+OUTPUT ONLY VALID JSON:`
 }
 
 /* ═══════════════ 기존 헬퍼 함수들 - 모두 유지 ═══════════════ */
@@ -1122,16 +1196,63 @@ export async function testGeminiAPI() {
 
 /* ═══════════════ 개선된 메인 함수들 ═══════════════ */
 
+// 새로운 버전: 선택된 감정 하나만 처리
+export async function generateInitialGreeting(
+  director: DirectorType,
+  scenario: { selectedEmotion: EmotionType; content: string }
+): Promise<{ message: string; choices: Choice[] }>
+
+// 기존 버전: 4개 씬 모두 처리 (호환성)
 export async function generateInitialGreeting(
   director: DirectorType,
   scenario: [string, string, string, string]
+): Promise<{ message: string; choices: Choice[] }>
+
+// 실제 구현
+export async function generateInitialGreeting(
+  director: DirectorType,
+  scenario: [string, string, string, string] | { selectedEmotion: EmotionType; content: string }
 ) {
   try {
     const startTime = Date.now()
     const model = jsonModel('gemini-2.5-flash')
+    
+    // 시나리오 형태 변환
+    let scenarioArray: [string, string, string, string]
+    if (Array.isArray(scenario)) {
+      scenarioArray = scenario
+    } else {
+      // 선택된 감정만 있는 경우, 나머지는 빈 문자열로 채움
+      const emotionIndex = {
+        'joy': 0,
+        'anger': 1,
+        'sadness': 2,
+        'pleasure': 3
+      }[scenario.selectedEmotion]
+      scenarioArray = ['', '', '', ''] as [string, string, string, string]
+      scenarioArray[emotionIndex] = scenario.content
+    }
+    
+    // choices 검증 함수
+    const validateResponse = (data: any) => {
+      if (!data.message || typeof data.message !== 'string') {
+        console.error('[Gemini] Invalid message:', data.message)
+        return false
+      }
+      const validatedChoices = validateChoices(data.choices)
+      if (!validatedChoices) {
+        console.error('[Gemini] Choices validation failed')
+        return false
+      }
+      data.choices = validatedChoices
+      return true
+    }
+    
     const data = await askWithRetry(
       model,
-      greetingPrompt(director, scenario)
+      greetingPrompt(director, scenarioArray),
+      5,
+      validateResponse
     )
     
     // 영화 제목 형식 정리
@@ -1139,18 +1260,29 @@ export async function generateInitialGreeting(
     
     console.log(`[Gemini] Greeting in ${Date.now() - startTime}ms`)
     
-    // 시나리오 기반 질문으로 대체
-    const scenarioBasedChoices = generateScenarioQuestions(director, scenario, 'early')
-    
     return {
       message: cleanedMessage,
-      choices: data.choices || scenarioBasedChoices
+      choices: data.choices // 이미 검증됨
     }
   } catch (e) {
     console.warn('[Gemini] Using fallback greeting:', e)
+    // 폴백 처리도 동일하게
+    let scenarioArray: [string, string, string, string]
+    if (Array.isArray(scenario)) {
+      scenarioArray = scenario
+    } else {
+      const emotionIndex = {
+        'joy': 0,
+        'anger': 1,
+        'sadness': 2,
+        'pleasure': 3
+      }[scenario.selectedEmotion]
+      scenarioArray = ['', '', '', ''] as [string, string, string, string]
+      scenarioArray[emotionIndex] = scenario.content
+    }
     return {
-      message: getEasyGreeting(director, scenario),
-      choices: generateScenarioQuestions(director, scenario, 'early')
+      message: getEasyGreeting(director, scenarioArray),
+      choices: generateScenarioQuestions(director, scenarioArray, 'early')
     }
   }
 }
@@ -1173,9 +1305,27 @@ export async function generateDirectorResponse(
   try {
     const startTime = Date.now()
     const model = jsonModel('gemini-2.5-flash')
+    
+    // choices 검증 함수
+    const validateResponse = (data: any) => {
+      if (!data.message || typeof data.message !== 'string') {
+        console.error('[Gemini] Invalid message:', data.message)
+        return false
+      }
+      const validatedChoices = validateChoices(data.choices)
+      if (!validatedChoices) {
+        console.error('[Gemini] Choices validation failed')
+        return false
+      }
+      data.choices = validatedChoices
+      return true
+    }
+    
     const data = await askWithRetry(
       model,
-      replyPrompt(director, scenario, history, user)
+      replyPrompt(director, scenarioArray, history, user),
+      5,
+      validateResponse
     )
     
     // 응답 형식 정리
@@ -1183,19 +1333,30 @@ export async function generateDirectorResponse(
     
     console.log(`[Gemini] Response in ${Date.now() - startTime}ms`)
     
-    // 시나리오와 현재 대화 주제 기반 질문
-    const currentTopic = detectTopic(user)
-    const scenarioBasedChoices = generateScenarioQuestions(director, scenario, stage, currentTopic)
-    
     return {
       message: cleanedMessage,
-      choices: data.choices || scenarioBasedChoices
+      choices: data.choices // 이미 검증됨
     }
   } catch (e) {
     console.warn('[Gemini] Using fallback response:', e)
+    const currentTopic = detectTopic(user)
+    // 폴백 처리도 동일하게
+    let scenarioArray: [string, string, string, string]
+    if (Array.isArray(scenario)) {
+      scenarioArray = scenario
+    } else {
+      const emotionIndex = {
+        'joy': 0,
+        'anger': 1,
+        'sadness': 2,
+        'pleasure': 3
+      }[scenario.selectedEmotion]
+      scenarioArray = ['', '', '', ''] as [string, string, string, string]
+      scenarioArray[emotionIndex] = scenario.content
+    }
     return {
-      message: getEasyFallback(director, user, scenario),
-      choices: generateScenarioQuestions(director, scenario, stage),
+      message: getEasyFallback(director, user, scenarioArray),
+      choices: generateScenarioQuestions(director, scenarioArray, stage, currentTopic),
       error: String(e)
     }
   }

@@ -48,13 +48,13 @@ export default function ChatPage() {
   // refs
   const chatEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const initRef = useRef(false)
-  const currentDirectorRef = useRef<string | null>(null)
+  const directorInitMap = useRef<Map<string, boolean>>(new Map())
+  const isInitializing = useRef(false)
+  const lastUserActionRef = useRef<'choice' | 'input' | null>(null)
 
   // local state
   const [isLoading, setIsLoading] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
-  const [currentChoices, setCurrentChoices] = useState<Choice[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isMuted, setIsMuted] = useState(false)
   const [showEndModal, setShowEndModal] = useState(false)
@@ -62,6 +62,17 @@ export default function ChatPage() {
   const [isOfflineMode, setIsOfflineMode] = useState(!isOnline())
   const [showDirectorInfo, setShowDirectorInfo] = useState(false)
   const [timeUpHandled, setTimeUpHandled] = useState(false)
+
+  /* ───────────────────────────── 현재 선택지 가져오기 ─────────────────────────── */
+  
+  // 마지막 assistant 메시지의 choices를 가져오는 함수
+  const getCurrentChoices = (): Choice[] => {
+    const lastAssistantMessage = [...state.chat.messages]
+      .reverse()
+      .find(msg => msg.role === 'assistant' && msg.choices && msg.choices.length > 0)
+    
+    return lastAssistantMessage?.choices || []
+  }
 
   /* ───────────────────────────── 세션 / 초기 진입 체크 ─────────────────────────── */
 
@@ -78,51 +89,84 @@ export default function ChatPage() {
   /* ───────────────────────────── 초기 인사말 세팅 ─────────────────────────────── */
 
   useEffect(() => {
-    // 감독이 바뀌면 재초기화
-    if (currentDirectorRef.current !== state.director.selected) {
-      currentDirectorRef.current = state.director.selected
-      initRef.current = false
-      setCurrentChoices([]) // 감독 변경 시 선택지 초기화
+    const director = state.director.selected
+    if (!director || !state.scenario.completed) return
+
+    // 이미 초기화되었는지 확인
+    if (directorInitMap.current.get(director)) {
+      console.log(`[Chat] Director ${director} already initialized`)
+      return
     }
 
-    const alreadyInited = initRef.current
-    if (alreadyInited || state.chat.messages.length) return
-    if (!state.director.selected || !state.scenario.completed) return
+    // 이미 해당 감독의 메시지가 있는지 확인
+    const hasDirectorMessages = state.chat.messages.some(msg => 
+      msg.id.includes(director)
+    )
+    if (hasDirectorMessages) {
+      console.log(`[Chat] Director ${director} has existing messages`)
+      directorInitMap.current.set(director, true)
+      return
+    }
 
-    initRef.current = true
+    // 초기화 진행 중인지 확인
+    if (isInitializing.current) {
+      console.log(`[Chat] Initialization already in progress`)
+      return
+    }
 
-    setIsTyping(true) // 초기 인사말 로드 시에도 "감독이 생각 중" 표시
+    // 초기화 시작
+    console.log(`[Chat] Initializing director ${director}`)
+    isInitializing.current = true
+    setIsTyping(true)
 
-    const run = async () => {
+    const initializeChat = async () => {
       try {
+        // 선택된 감정과 컨텐츠 전달
+        const selectedEmotion = state.scenario.selectedEmotion
+        const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
+        
         const greeting = await generateInitialGreeting(
-          state.director.selected!,
-          state.scenario.cuts
+          director,
+          selectedEmotion && selectedContent ? 
+            { selectedEmotion, content: selectedContent } : 
+            ['', '', '', ''] as [string, string, string, string] // 폴백
         )
-        actions.addMessage({
-          id: `greeting-${state.director.selected}-${Date.now()}`,
-          role: 'assistant',
-          content: greeting.message,
-          timestamp: new Date(),
-          choices: greeting.choices
-        })
-        setCurrentChoices(greeting.choices)
-      } catch {
-        const fallback = getInitialGreeting(state.director.selected!)
-        actions.addMessage({
-          id: `greeting-fallback-${state.director.selected}-${Date.now()}`,
-          role: 'assistant',
-          content: fallback.message,
-          timestamp: new Date(),
-          choices: fallback.choices
-        })
-        setCurrentChoices(fallback.choices)
+        
+        // 다시 한번 체크 (비동기 처리 중 상태가 변했을 수 있음)
+        if (!directorInitMap.current.get(director)) {
+          actions.addMessage({
+            id: `greeting-${director}-${Date.now()}`,
+            role: 'assistant',
+            content: greeting.message,
+            timestamp: new Date(),
+            choices: greeting.choices
+          })
+          directorInitMap.current.set(director, true)
+          console.log(`[Chat] Director ${director} initialized with AI greeting`)
+        }
+      } catch (error) {
+        console.error('[Chat] Failed to generate AI greeting:', error)
+        // Fallback 사용
+        if (!directorInitMap.current.get(director)) {
+          const fallback = getInitialGreeting(director)
+          actions.addMessage({
+            id: `greeting-fallback-${director}-${Date.now()}`,
+            role: 'assistant',
+            content: fallback.message,
+            timestamp: new Date(),
+            choices: fallback.choices
+          })
+          directorInitMap.current.set(director, true)
+          console.log(`[Chat] Director ${director} initialized with fallback greeting`)
+        }
       } finally {
-        setIsTyping(false) // 인사말 로드 완료 후 "감독이 생각 중" 사라짐
+        setIsTyping(false)
+        isInitializing.current = false
       }
     }
-    run()
-  }, [state.director.selected, state.scenario.completed, state.chat.messages.length, actions, state.scenario.cuts])
+
+    initializeChat()
+  }, [state.director.selected, state.scenario.completed, state.scenario.selectedEmotion, state.scenario.cuts, actions, state.chat.messages])
 
   /* ───────────────────────────── 네트워크 상태 ──────────────────────────────── */
 
@@ -175,18 +219,22 @@ export default function ChatPage() {
 
   /* ───────────────────────────── 메시지 전송 ────────────────────────────────── */
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, source: 'choice' | 'input' = 'input') => {
     if (!content.trim() || isLoading) return
 
+    // 사용자 액션 추적
+    lastUserActionRef.current = source
+    console.log(`[Chat] User action: ${source}, content: ${content}`)
+
     const userMsg: Message = {
-      id: `msg-${Date.now()}`,
+      id: `msg-user-${Date.now()}`,
       role: 'user',
       content: content.trim(),
       timestamp: new Date()
     }
+    
     actions.addMessage(userMsg)
     setInputValue('')
-    setCurrentChoices([])
     setIsLoading(true)
     setIsTyping(true)
 
@@ -206,22 +254,31 @@ export default function ChatPage() {
         )
         response = { ...offline, error: undefined }
       } else {
+        // 선택된 감정과 컨텐츠 전달
+        const selectedEmotion = state.scenario.selectedEmotion
+        const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
+        
         response = await generateDirectorResponse(
           state.director.selected!,
-          state.scenario.cuts,
+          selectedEmotion && selectedContent ? 
+            { selectedEmotion, content: selectedContent } : 
+            ['', '', '', ''] as [string, string, string, string], // 폴백
           content,
           state.chat.messages.map(m => ({ role: m.role, content: m.content }))
         )
       }
 
+      // 응답 메시지 추가
       actions.addMessage({
-        id: `msg-${Date.now()}`,
+        id: `msg-assistant-${Date.now()}`,
         role: 'assistant',
         content: response.message,
         timestamp: new Date(),
-        choices: response.choices
+        choices: response.choices || []
       })
-      setCurrentChoices(response.choices || [])
+
+      console.log(`[Chat] Assistant response added with ${response.choices?.length || 0} choices`)
+
       if (!isOfflineMode && response.error) {
         showToast({
           message: 'AI 응답 처리 중 일부 오류가 발생했지만 대화는 계속됩니다.',
@@ -229,6 +286,7 @@ export default function ChatPage() {
         })
       }
     } catch (e) {
+      console.error('[Chat] Error generating response:', e)
       setIsOfflineMode(true)
       const off = getOfflineResponse(
         state.director.selected!,
@@ -236,17 +294,17 @@ export default function ChatPage() {
         content
       )
       actions.addMessage({
-        id: `msg-off-${Date.now()}`,
+        id: `msg-offline-${Date.now()}`,
         role: 'assistant',
         content: off.message,
         timestamp: new Date(),
-        choices: off.choices
+        choices: off.choices || []
       })
-      setCurrentChoices(off.choices || [])
       showToast({ message: '네트워크 오류로 오프라인 모드 전환', type: 'warning' })
     } finally {
       setIsTyping(false)
       setIsLoading(false)
+      lastUserActionRef.current = null
     }
   }
 
@@ -277,8 +335,7 @@ export default function ChatPage() {
   const handleBack = () => {
     haptic.light();
     // 대화는 그대로 두고 감독 선택 화면으로만 이동
-    // setStep을 'director'로 변경하지 않고 그냥 이동
-    // 이렇게 하면 다시 돌아왔을 때 채팅이 유지됨
+    // 현재 감독의 초기화 상태는 유지
     router.push('/director');
   };
 
@@ -289,12 +346,15 @@ export default function ChatPage() {
       if (endModalType === 'chat') {
         // 'chat' 타입일 때는 채팅만 리셋하고 감독 선택 화면으로
         actions.resetChat();
+        // 초기화 맵도 클리어
+        directorInitMap.current.clear();
         setTimeUpHandled(false);
         actions.setStep('director');
         router.push('/director');
       } else {
         // 'all' 타입일 때는 전체 리셋
         actions.resetAll();
+        directorInitMap.current.clear();
         router.push('/');
       }
     }, 150)
@@ -303,6 +363,7 @@ export default function ChatPage() {
   /* ───────────────────────────── 렌더 ──────────────────────────────────────── */
 
   const directorTheme = state.director.data
+  const currentChoices = getCurrentChoices()
 
   return (
     <div className="fullscreen-safe flex flex-col h-screen bg-black">
@@ -489,12 +550,12 @@ export default function ChatPage() {
               {currentChoices.length > 0 && !isLoading && (
                 <ChoiceButtons
                   choices={currentChoices}
-                  onSelect={c => sendMessage(c.text)}
+                  onSelect={c => sendMessage(c.text, 'choice')}
                   disabled={isLoading}
                 />
               )}
               <form
-                onSubmit={e => { e.preventDefault(); sendMessage(inputValue) }}
+                onSubmit={e => { e.preventDefault(); sendMessage(inputValue, 'input') }}
                 className="flex gap-2 mt-2"
               >
                 <input
@@ -506,7 +567,7 @@ export default function ChatPage() {
                   className="flex-1 px-4 py-3 text-white bg-white/10 border border-white/30 rounded-xl placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:bg-white/5"
                 />
                 <TouchButton
-                  onClick={() => sendMessage(inputValue)}
+                  onClick={() => sendMessage(inputValue, 'input')}
                   disabled={!inputValue.trim() || isLoading}
                   variant="primary"
                   size="md"
