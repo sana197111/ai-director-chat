@@ -431,6 +431,11 @@ const replyPrompt = (
   // 실제 질문으로 JSON 예시 생성
   const stage = conversationDepth === 0 ? 'early' : conversationDepth === 1 ? 'mid' : 'late'
   const actualQuestions = generateScenarioQuestions(director, scenario, stage)
+  
+  // 디버깅: 어떤 질문이 생성되는지 확인
+  console.log(`[generateScenarioQuestions] director: ${director}, stage: ${stage}`)
+  console.log(`[generateScenarioQuestions] questions:`, actualQuestions)
+  
   const jsonExample = JSON.stringify({
     message: "감독의 답변입니다.",
     choices: actualQuestions

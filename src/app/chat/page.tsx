@@ -256,7 +256,11 @@ export default function ChatPage() {
     actions.addMessage(userMsg)
     setInputValue('')
     setIsLoading(true)
-    setIsTyping(true)
+    
+    // "감독이 생각 중" 메시지를 약간 지연시켜서 자연스럽게 표시
+    setTimeout(() => {
+      setIsTyping(true)
+    }, 800)
 
     try {
       let response: {
@@ -751,12 +755,12 @@ export default function ChatPage() {
                     exit={{ opacity: 0, y: -20 }}
                     className="flex gap-3"
                   >
-                    <div className="w-10 h-10 rounded-full bg-yellow-100 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-yellow-100 flex-shrink-0 overflow-hidden">
                       {directorTheme?.avatar ? (
                         <img
                           src={directorTheme.avatar}
                           alt={directorTheme.nameKo}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
                         <Film className="w-5 h-5 text-yellow-600 m-auto" />
