@@ -51,9 +51,8 @@ export default function ChatPage() {
   // refs
   const chatEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const directorInitMap = useRef<Map<string, boolean>>(new Map())
-  const isInitializing = useRef(false)
   const lastUserActionRef = useRef<'choice' | 'input' | null>(null)
+  const hasInitialized = useRef(false)
 
   // local state
   const [isLoading, setIsLoading] = useState(false)
@@ -72,6 +71,7 @@ export default function ChatPage() {
   const [scenarioContext, setScenarioContext] = useState<ScenarioContext | null>(null)
   const [finalScenario, setFinalScenario] = useState<string>('')
   const [sessionRestored, setSessionRestored] = useState(false)
+  const [initStatus, setInitStatus] = useState<'pending' | 'initializing' | 'completed'>('pending')
 
   /* ───────────────────────────── 현재 선택지 가져오기 ─────────────────────────── */
   
@@ -109,32 +109,32 @@ export default function ChatPage() {
   /* ───────────────────────────── 세션 복구 ──────────────────────────────────── */
   
   useEffect(() => {
-    // 페이지 로드 시 세션 복구 시도
-    if (!sessionRestored) {
-      if (ChatStorage.hasSession()) {
-        const savedSession = ChatStorage.load()
-        if (savedSession && savedSession.director === state.director.selected) {
-          const shouldRestore = window.confirm(getSessionRecoveryPrompt())
+    // 페이지 로드 시 세션 복구 시도 (한 번만 실행)
+    if (sessionRestored) return
+    
+    if (ChatStorage.hasSession()) {
+      const savedSession = ChatStorage.load()
+      if (savedSession && savedSession.director === state.director.selected) {
+        const shouldRestore = window.confirm(getSessionRecoveryPrompt())
+        
+        if (shouldRestore) {
+          // 메시지 복구
+          savedSession.messages.forEach(msg => actions.addMessage(msg))
           
-          if (shouldRestore) {
-            // 메시지 복구
-            savedSession.messages.forEach(msg => actions.addMessage(msg))
-            
-            // 컨텍스트 복구
-            setScenarioContext(savedSession.scenarioContext)
-            setConversationStage(savedSession.conversationStage)
-            
-            console.log('[Chat] Session restored from storage')
-            showToast({ message: '이전 대화가 복구되었습니다', type: 'success' })
-          } else {
-            ChatStorage.clear()
-          }
+          // 컨텍스트 복구
+          setScenarioContext(savedSession.scenarioContext)
+          setConversationStage(savedSession.conversationStage)
+          
+          console.log('[Chat] Session restored from storage')
+          showToast({ message: '이전 대화가 복구되었습니다', type: 'success' })
+        } else {
+          ChatStorage.clear()
         }
       }
-      // 세션 체크 완료 표시 (세션 유무와 관계없이)
-      setSessionRestored(true)
     }
-  }, [sessionRestored, state.director.selected, actions, showToast])
+    // 세션 체크 완료 표시 (세션 유무와 관계없이)
+    setSessionRestored(true)
+  }, []) // 의존성 배열 비우기 - 한 번만 실행
 
   /* ───────────────────────────── 자동 저장 ────────────────────────────────── */
   
@@ -150,7 +150,7 @@ export default function ChatPage() {
           turnCount: state.chat.currentTurn
         })
       }
-    }, 2000), // 2초 디바운싱
+    }, 5000), // 5초 디바운싱 (성능 개선)
     [state.chat.messages, state.director.selected, scenarioContext, conversationStage, state.chat.currentTurn]
   )
   
@@ -162,56 +162,39 @@ export default function ChatPage() {
   /* ───────────────────────────── 초기 인사말 세팅 ─────────────────────────────── */
 
   useEffect(() => {
-    const director = state.director.selected
-    if (!director || !state.scenario.completed) return
+    // 중복 초기화 방지
+    if (hasInitialized.current) return
     
-    // 세션 복구가 완료되기 전에는 초기화 대기
-    if (!sessionRestored) return
-
-    // 이미 초기화되었는지 확인
-    if (directorInitMap.current.get(director)) {
-      console.log(`[Chat] Director ${director} already initialized`)
-      return
-    }
-
-    // 이미 해당 감독의 메시지가 있는지 확인
-    const hasDirectorMessages = state.chat.messages.some(msg => 
-      msg.id.includes(director)
+    // 인사말이 이미 있는지 확인
+    const hasGreeting = state.chat.messages.some(
+      msg => msg.id.startsWith('greeting-') && msg.role === 'assistant'
     )
-    if (hasDirectorMessages) {
-      console.log(`[Chat] Director ${director} has existing messages`)
-      directorInitMap.current.set(director, true)
+    if (hasGreeting) {
+      hasInitialized.current = true
+      setInitStatus('completed')
       return
     }
-
-    // 초기화 진행 중인지 확인
-    if (isInitializing.current) {
-      console.log(`[Chat] Initialization already in progress`)
-      return
-    }
-
+    
+    const director = state.director.selected
+    if (!director || !state.scenario.completed || !sessionRestored) return
+    
     // 초기화 시작
-    console.log(`[Chat] Initializing director ${director}`)
-    isInitializing.current = true
+    setInitStatus('initializing')
     setIsTyping(true)
-
+    
     const initializeChat = async () => {
       try {
-        // 선택된 감정과 컨텐츠 가져오기
         const selectedEmotion = state.scenario.selectedEmotion
         const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
         
         let greeting
         
-        // 시나리오가 있든 없든 항상 컨텍스트 초기화
         if (selectedEmotion && selectedContent && selectedContent.trim()) {
-          // 실제 컨텐츠가 있는 경우
           greeting = await generateInitialGreeting(
             director,
             { selectedEmotion, content: selectedContent }
           )
           
-          // 시나리오 컨텍스트 초기화
           setScenarioContext({
             originalStory: selectedContent,
             emotion: selectedEmotion,
@@ -223,7 +206,6 @@ export default function ChatPage() {
           console.log(`[Chat] Context initialized with story: ${selectedContent.substring(0, 50)}...`)
           
         } else {
-          // 컨텐츠가 없는 경우 - 기본 스토리 사용
           const defaultStory = "오늘 제 이야기를 들어주세요"
           const defaultEmotion: EmotionType = 'joy'
           
@@ -232,7 +214,6 @@ export default function ChatPage() {
             { selectedEmotion: defaultEmotion, content: defaultStory }
           )
           
-          // 기본 컨텍스트로 초기화
           setScenarioContext({
             originalStory: defaultStory,
             emotion: defaultEmotion,
@@ -244,52 +225,55 @@ export default function ChatPage() {
           console.log(`[Chat] Context initialized with default story`)
         }
         
-        // 다시 한번 체크 (비동기 처리 중 상태가 변했을 수 있음)
-        if (!directorInitMap.current.get(director)) {
-          actions.addMessage({
-            id: `greeting-${director}-${Date.now()}`,
-            role: 'assistant',
-            content: greeting.message,
-            timestamp: new Date(),
-            choices: greeting.choices
-          })
-          directorInitMap.current.set(director, true)
-          console.log(`[Chat] Director ${director} initialized with AI greeting`)
-        }
+        actions.addMessage({
+          id: `greeting-${director}-${Date.now()}`,
+          role: 'assistant',
+          content: greeting.message,
+          timestamp: new Date(),
+          choices: greeting.choices
+        })
+        
+        hasInitialized.current = true
+        setInitStatus('completed')  // 완료 표시
+        console.log(`[Chat] Director ${director} initialized successfully`)
+        
       } catch (error) {
         console.error('[Chat] Failed to generate AI greeting:', error)
-        // Fallback 사용 - 기본 컨텍스트도 설정
-        if (!directorInitMap.current.get(director)) {
-          const fallback = getInitialGreeting(director)
-          actions.addMessage({
-            id: `greeting-fallback-${director}-${Date.now()}`,
-            role: 'assistant',
-            content: fallback.message,
-            timestamp: new Date(),
-            choices: fallback.choices
-          })
-          
-          // Fallback에서도 기본 컨텍스트 설정
-          setScenarioContext({
-            originalStory: "오늘 제 이야기를 들어주세요",
-            emotion: 'joy',
-            collectedDetails: {},
-            currentStage: 'initial',
-            previousMessages: []
-          })
-          setConversationStage('initial')
-          
-          directorInitMap.current.set(director, true)
-          console.log(`[Chat] Director ${director} initialized with fallback`)
-        }
+        
+        // Fallback 사용
+        const fallback = getInitialGreeting(director)
+        actions.addMessage({
+          id: `greeting-fallback-${director}-${Date.now()}`,
+          role: 'assistant',
+          content: fallback.message,
+          timestamp: new Date(),
+          choices: fallback.choices
+        })
+        
+        setScenarioContext({
+          originalStory: "오늘 제 이야기를 들어주세요",
+          emotion: 'joy',
+          collectedDetails: {},
+          currentStage: 'initial',
+          previousMessages: []
+        })
+        setConversationStage('initial')
+        
+        hasInitialized.current = true
+        setInitStatus('completed')  // 완료 표시
+        console.log(`[Chat] Director ${director} initialized with fallback`)
       } finally {
         setIsTyping(false)
-        isInitializing.current = false
       }
     }
-
+    
     initializeChat()
-  }, [state.director.selected, state.scenario.completed, state.scenario.selectedEmotion, state.scenario.cuts, actions, state.chat.messages, sessionRestored])
+  }, [
+    state.director.selected,
+    state.scenario.completed,
+    sessionRestored
+    // initStatus 제거 - 무한 루프 방지
+  ])
 
   /* ───────────────────────────── 네트워크 상태 ──────────────────────────────── */
 
@@ -651,7 +635,7 @@ export default function ChatPage() {
     setInputValue('');
     setTimeUpHandled(false);
     setShowCastingMessage(false);
-    isInitializing.current = false;
+    hasInitialized.current = false;  // isInitializing 대신 hasInitialized 사용
     lastUserActionRef.current = null;
     
     // 로컬 스토리지 초기화
@@ -662,15 +646,15 @@ export default function ChatPage() {
       if (endModalType === 'chat') {
         // 'chat' 타입일 때는 채팅만 리셋하고 감독 선택 화면으로
         actions.resetChat();
-        // 초기화 맵도 클리어
-        directorInitMap.current.clear();
+        // 초기화 상태 리셋
+        hasInitialized.current = false;
+        setInitStatus('pending');
         setTimeUpHandled(false);
         actions.setStep('director');
         router.push('/director');
       } else {
         // 'all' 타입일 때는 전체 리셋
         actions.resetAll();
-        directorInitMap.current.clear();
         router.push('/');
       }
     }, 150)
