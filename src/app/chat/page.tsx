@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -18,6 +18,7 @@ import {
   ChoiceButtons
 } from '@/components/features/ChatBubble'
 import { Timer } from '@/components/features/Timer'
+import { ScenarioDisplay, ScenarioStatusBadge } from '@/components/features/ScenarioDisplay'
 import {
   TouchButton,
   Modal,
@@ -38,7 +39,9 @@ import {
   isOnline,
   getOfflineModeMessage
 } from '@/lib/offlineResponses'
-import type { Message, Choice } from '@/types'
+import { ChatStorage, createAutoSave, getSessionRecoveryPrompt } from '@/lib/storage'
+import type { Message, Choice, EmotionType } from '@/types'
+import type { ConversationStage, ScenarioContext } from '@/lib/gemini'
 
 export default function ChatPage() {
   const router = useRouter()
@@ -63,6 +66,12 @@ export default function ChatPage() {
   const [showDirectorInfo, setShowDirectorInfo] = useState(false)
   const [timeUpHandled, setTimeUpHandled] = useState(false)
   const [showCastingMessage, setShowCastingMessage] = useState(false)
+  
+  // 시나리오 컨텍스트 및 스테이지 관리
+  const [conversationStage, setConversationStage] = useState<ConversationStage>('initial')
+  const [scenarioContext, setScenarioContext] = useState<ScenarioContext | null>(null)
+  const [finalScenario, setFinalScenario] = useState<string>('')
+  const [sessionRestored, setSessionRestored] = useState(false)
 
   /* ───────────────────────────── 현재 선택지 가져오기 ─────────────────────────── */
   
@@ -73,6 +82,16 @@ export default function ChatPage() {
       .find(msg => msg.role === 'assistant' && msg.choices && msg.choices.length > 0)
     
     return lastAssistantMessage?.choices || []
+  }
+  
+  // 스테이지 진행 헬퍼
+  const getNextStage = (current: ConversationStage): ConversationStage => {
+    const stages: ConversationStage[] = [
+      'initial', 'detail_1', 'detail_2', 'detail_3', 
+      'draft', 'feedback', 'final'
+    ]
+    const idx = stages.indexOf(current)
+    return stages[Math.min(idx + 1, stages.length - 1)] as ConversationStage
   }
 
   /* ───────────────────────────── 세션 / 초기 진입 체크 ─────────────────────────── */
@@ -87,11 +106,67 @@ export default function ChatPage() {
     }
   }, [state.session.currentStep, state.director.selected, state.scenario.completed, router])
 
+  /* ───────────────────────────── 세션 복구 ──────────────────────────────────── */
+  
+  useEffect(() => {
+    // 페이지 로드 시 세션 복구 시도
+    if (!sessionRestored) {
+      if (ChatStorage.hasSession()) {
+        const savedSession = ChatStorage.load()
+        if (savedSession && savedSession.director === state.director.selected) {
+          const shouldRestore = window.confirm(getSessionRecoveryPrompt())
+          
+          if (shouldRestore) {
+            // 메시지 복구
+            savedSession.messages.forEach(msg => actions.addMessage(msg))
+            
+            // 컨텍스트 복구
+            setScenarioContext(savedSession.scenarioContext)
+            setConversationStage(savedSession.conversationStage)
+            
+            console.log('[Chat] Session restored from storage')
+            showToast({ message: '이전 대화가 복구되었습니다', type: 'success' })
+          } else {
+            ChatStorage.clear()
+          }
+        }
+      }
+      // 세션 체크 완료 표시 (세션 유무와 관계없이)
+      setSessionRestored(true)
+    }
+  }, [sessionRestored, state.director.selected, actions, showToast])
+
+  /* ───────────────────────────── 자동 저장 ────────────────────────────────── */
+  
+  // 자동 저장 함수
+  const autoSave = useCallback(
+    createAutoSave(() => {
+      if (state.chat.messages.length > 0 && state.director.selected) {
+        ChatStorage.save({
+          messages: state.chat.messages,
+          scenarioContext,
+          conversationStage,
+          director: state.director.selected,
+          turnCount: state.chat.currentTurn
+        })
+      }
+    }, 2000), // 2초 디바운싱
+    [state.chat.messages, state.director.selected, scenarioContext, conversationStage, state.chat.currentTurn]
+  )
+  
+  // 상태 변경 시마다 자동 저장
+  useEffect(() => {
+    autoSave()
+  }, [state.chat.messages, scenarioContext, conversationStage])
+
   /* ───────────────────────────── 초기 인사말 세팅 ─────────────────────────────── */
 
   useEffect(() => {
     const director = state.director.selected
     if (!director || !state.scenario.completed) return
+    
+    // 세션 복구가 완료되기 전에는 초기화 대기
+    if (!sessionRestored) return
 
     // 이미 초기화되었는지 확인
     if (directorInitMap.current.get(director)) {
@@ -122,21 +197,51 @@ export default function ChatPage() {
 
     const initializeChat = async () => {
       try {
-        // 선택된 감정과 컨텐츠 전달
+        // 선택된 감정과 컨텐츠 가져오기
         const selectedEmotion = state.scenario.selectedEmotion
         const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
         
         let greeting
-        if (selectedEmotion && selectedContent) {
+        
+        // 시나리오가 있든 없든 항상 컨텍스트 초기화
+        if (selectedEmotion && selectedContent && selectedContent.trim()) {
+          // 실제 컨텐츠가 있는 경우
           greeting = await generateInitialGreeting(
             director,
             { selectedEmotion, content: selectedContent }
           )
+          
+          // 시나리오 컨텍스트 초기화
+          setScenarioContext({
+            originalStory: selectedContent,
+            emotion: selectedEmotion,
+            collectedDetails: {},
+            currentStage: 'initial',
+            previousMessages: []
+          })
+          setConversationStage('initial')
+          console.log(`[Chat] Context initialized with story: ${selectedContent.substring(0, 50)}...`)
+          
         } else {
+          // 컨텐츠가 없는 경우 - 기본 스토리 사용
+          const defaultStory = "오늘 제 이야기를 들어주세요"
+          const defaultEmotion: EmotionType = 'joy'
+          
           greeting = await generateInitialGreeting(
             director,
-            ['', '', '', ''] as [string, string, string, string]
+            { selectedEmotion: defaultEmotion, content: defaultStory }
           )
+          
+          // 기본 컨텍스트로 초기화
+          setScenarioContext({
+            originalStory: defaultStory,
+            emotion: defaultEmotion,
+            collectedDetails: {},
+            currentStage: 'initial',
+            previousMessages: []
+          })
+          setConversationStage('initial')
+          console.log(`[Chat] Context initialized with default story`)
         }
         
         // 다시 한번 체크 (비동기 처리 중 상태가 변했을 수 있음)
@@ -153,7 +258,7 @@ export default function ChatPage() {
         }
       } catch (error) {
         console.error('[Chat] Failed to generate AI greeting:', error)
-        // Fallback 사용
+        // Fallback 사용 - 기본 컨텍스트도 설정
         if (!directorInitMap.current.get(director)) {
           const fallback = getInitialGreeting(director)
           actions.addMessage({
@@ -163,8 +268,19 @@ export default function ChatPage() {
             timestamp: new Date(),
             choices: fallback.choices
           })
+          
+          // Fallback에서도 기본 컨텍스트 설정
+          setScenarioContext({
+            originalStory: "오늘 제 이야기를 들어주세요",
+            emotion: 'joy',
+            collectedDetails: {},
+            currentStage: 'initial',
+            previousMessages: []
+          })
+          setConversationStage('initial')
+          
           directorInitMap.current.set(director, true)
-          console.log(`[Chat] Director ${director} initialized with fallback greeting`)
+          console.log(`[Chat] Director ${director} initialized with fallback`)
         }
       } finally {
         setIsTyping(false)
@@ -173,7 +289,7 @@ export default function ChatPage() {
     }
 
     initializeChat()
-  }, [state.director.selected, state.scenario.completed, state.scenario.selectedEmotion, state.scenario.cuts, actions, state.chat.messages])
+  }, [state.director.selected, state.scenario.completed, state.scenario.selectedEmotion, state.scenario.cuts, actions, state.chat.messages, sessionRestored])
 
   /* ───────────────────────────── 네트워크 상태 ──────────────────────────────── */
 
@@ -224,11 +340,11 @@ export default function ChatPage() {
     haptic.light()
   }
 
-  /* ───────────────────────────── 15턴 체크 ────────────────────────────────── */
+  /* ───────────────────────────── 20턴 체크 ────────────────────────────────── */
 
   useEffect(() => {
-    // 15턴 도달 시 캐스팅 메시지
-    if (state.chat.currentTurn >= 15 && !showCastingMessage && !timeUpHandled) {
+    // 20턴 도달 시 캐스팅 메시지
+    if (state.chat.currentTurn >= 20 && !showCastingMessage && !timeUpHandled) {
       addCastingMessage()
       setTimeout(() => {
         setEndModalType('chat')
@@ -262,12 +378,22 @@ export default function ChatPage() {
       setIsTyping(true)
     }, 800)
 
-    try {
-      let response: {
-        message: string
-        choices?: Choice[]
-        error?: string
-      }
+    // 에러 복구를 위한 재시도 로직
+    const MAX_RETRIES = 3
+    let retryCount = 0
+    let lastError: Error | null = null
+    
+    let response: {
+      message: string
+      choices?: Choice[]
+      error?: string
+      scenario?: string
+      casting?: string
+      stage?: ConversationStage
+    } | undefined
+
+    while (retryCount <= MAX_RETRIES) {
+      try {
 
       if (isOfflineMode) {
         await new Promise(r => setTimeout(r, 1200))
@@ -276,48 +402,160 @@ export default function ChatPage() {
           state.chat.currentTurn,
           content
         )
-        response = { ...offline, error: undefined }
-      } else {
-        // 선택된 감정과 컨텐츠를 4-tuple 형식으로 변환
-        const selectedEmotion = state.scenario.selectedEmotion
-        const selectedContent = selectedEmotion ? state.scenario.cuts[selectedEmotion] : ''
-        
-        // 4개 씬 배열 만들기 (선택된 감정의 컨텐츠만 포함)
-        const scenarioArray: [string, string, string, string] = ['', '', '', '']
-        if (selectedEmotion && selectedContent) {
-          const emotionIndex = selectedEmotion === 'joy' ? 0 : 
-                              selectedEmotion === 'anger' ? 1 : 
-                              selectedEmotion === 'sadness' ? 2 : 3
-          scenarioArray[emotionIndex] = selectedContent
+        response = { 
+          ...offline, 
+          stage: 'initial' as ConversationStage // 오프라인 모드에서는 initial stage 사용
         }
-        
-        response = await generateDirectorResponse(
-          state.director.selected!,
-          scenarioArray,
-          content,
-          state.chat.messages.map(m => ({ role: m.role, content: m.content }))
-        )
+      } else {
+        // 시나리오 컨텍스트가 있으면 새 시스템 사용
+        if (scenarioContext) {
+          // 현재 스테이지에 따라 다음 스테이지 결정
+          let nextStage = conversationStage
+          
+          // 유연한 스테이지 진행 로직
+          if (conversationStage === 'initial') {
+            // 충분한 정보가 있으면 detail 단계 건너뛰기 가능
+            const hasEnoughDetail = content.length > 100 || 
+              content.includes('이야기') || content.includes('경험')
+            nextStage = hasEnoughDetail ? 'detail_2' : 'detail_1'
+          } else if (conversationStage.startsWith('detail')) {
+            const currentDetail = parseInt(conversationStage.split('_')[1])
+            // 사용자가 많은 정보를 제공하면 빠르게 진행
+            const detailLevel = content.length > 150 ? 2 : 1
+            const nextDetail = Math.min(currentDetail + detailLevel, 3)
+            
+            if (nextDetail >= 3 || state.chat.currentTurn >= 12) {
+              // 충분한 디테일이 수집되었거나 대화가 길어지면 draft로
+              nextStage = 'draft'
+            } else {
+              nextStage = `detail_${nextDetail}` as ConversationStage
+            }
+          } else if (conversationStage === 'draft') {
+            // 사용자 피드백에 따라 결정
+            const positiveWords = ['좋', '완벽', '마음에', '최고', '감동', '멋']
+            const negativeWords = ['아니', '다시', '수정', '변경', '별로']
+            
+            const hasPositive = positiveWords.some(word => content.includes(word))
+            const hasNegative = negativeWords.some(word => content.includes(word))
+            
+            if (hasPositive && !hasNegative) {
+              nextStage = 'final'
+            } else if (hasNegative || content.length > 50) {
+              nextStage = 'feedback'
+            } else {
+              // 짧고 중립적인 응답은 추가 확인
+              nextStage = 'feedback'
+            }
+          } else if (conversationStage === 'feedback') {
+            nextStage = 'final'
+          }
+          
+          // 디테일 수집 - detail 단계에서만
+          const updatedDetails = { ...scenarioContext.collectedDetails }
+          if (conversationStage.startsWith('detail')) {
+            const detailKey = `detail_${conversationStage.split('_')[1]}`
+            updatedDetails[detailKey] = content
+          }
+          
+          const updatedContext: ScenarioContext = {
+            ...scenarioContext,
+            currentStage: nextStage,
+            collectedDetails: updatedDetails,
+            previousMessages: [...scenarioContext.previousMessages, 
+              { role: 'user', content: content }
+            ],
+            // draft 단계에서 생성된 시나리오 보존
+            draftScenario: scenarioContext.draftScenario
+          }
+          
+          console.log(`[Chat] Stage transition: ${conversationStage} -> ${nextStage}`)
+          console.log(`[Chat] Collected details:`, updatedDetails)
+          
+          response = await generateDirectorResponse(
+            state.director.selected!,
+            updatedContext
+          )
+          
+          // 시나리오가 생성되면 저장
+          if (response.scenario) {
+            updatedContext.draftScenario = response.scenario
+            console.log(`[Chat] Scenario generated at stage ${nextStage}`)
+          }
+          
+          // 컨텍스트와 스테이지 업데이트
+          setScenarioContext(updatedContext)
+          setConversationStage(nextStage)
+          
+          // 최종 시나리오 저장
+          if (response.scenario && nextStage === 'final') {
+            setFinalScenario(response.scenario)
+            console.log(`[Chat] Final scenario saved`)
+          }
+          
+        } else {
+          // 컨텍스트가 없는 경우 - 초기화 시도
+          console.warn('[Chat] No scenario context, initializing default')
+          
+          const defaultContext: ScenarioContext = {
+            originalStory: content,
+            emotion: 'joy' as EmotionType,
+            collectedDetails: {},
+            currentStage: 'detail_1',
+            previousMessages: [{ role: 'user', content: content }]
+          }
+          
+          setScenarioContext(defaultContext)
+          setConversationStage('detail_1')
+          
+          response = await generateDirectorResponse(
+            state.director.selected!,
+            defaultContext
+          )
+        }
       }
 
       // 응답 메시지 추가
-      actions.addMessage({
-        id: `msg-assistant-${Date.now()}`,
-        role: 'assistant',
-        content: response.message,
-        timestamp: new Date(),
-        choices: response.choices || []
-      })
-
-      console.log(`[Chat] Assistant response added with ${response.choices?.length || 0} choices`)
-
-      if (!isOfflineMode && response.error) {
-        showToast({
-          message: 'AI 응답 처리 중 일부 오류가 발생했지만 대화는 계속됩니다.',
-          type: 'warning'
+      if (response) {
+        actions.addMessage({
+          id: `msg-assistant-${Date.now()}`,
+          role: 'assistant',
+          content: response.message,
+          timestamp: new Date(),
+          choices: response.choices || []
         })
+
+        console.log(`[Chat] Assistant response added:`)
+        console.log(`  - Stage: ${conversationStage}`)
+        console.log(`  - Choices: ${response.choices?.length || 0}`)
+        console.log(`  - Has scenario: ${!!response.scenario}`)
+
       }
+      
+      // 성공시 재시도 루프 종료
+      break
+      
     } catch (e) {
-      console.error('[Chat] Error generating response:', e)
+      console.error(`[Chat] Error generating response (attempt ${retryCount + 1}):`, e)
+      lastError = e as Error
+      retryCount++
+      
+      // 재시도 가능한 경우
+      if (retryCount <= MAX_RETRIES) {
+        // 지수 백오프로 대기
+        const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000)
+        console.log(`[Chat] Retrying in ${delay}ms...`)
+        
+        showToast({
+          message: `연결 재시도 중... (${retryCount}/${MAX_RETRIES})`,
+          type: 'info'
+        })
+        
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      
+      // 모든 재시도 실패 시 오프라인 모드로 폴백
+      console.error('[Chat] All retries failed, switching to offline mode')
       setIsOfflineMode(true)
       const off = getOfflineResponse(
         state.director.selected!,
@@ -332,11 +570,16 @@ export default function ChatPage() {
         choices: off.choices || []
       })
       showToast({ message: '네트워크 오류로 오프라인 모드 전환', type: 'warning' })
-    } finally {
+      break
+    }
+    } // while 루프 종료
+    
+    // finally 블록에 해당하는 정리 작업
+    try {
       setIsTyping(false)
       setIsLoading(false)
       lastUserActionRef.current = null
-    }
+    } catch {} // 정리 작업 중 에러 무시
   }
 
   /* ───────────────────────────── 캐스팅 메시지 처리 ───────────────────────────────── */
@@ -401,6 +644,20 @@ export default function ChatPage() {
   const handleEndSession = () => {
     haptic.heavy();
     setShowEndModal(false);
+    
+    // 로컬 상태 초기화
+    setIsLoading(false);
+    setIsTyping(false);
+    setInputValue('');
+    setTimeUpHandled(false);
+    setShowCastingMessage(false);
+    isInitializing.current = false;
+    lastUserActionRef.current = null;
+    
+    // 로컬 스토리지 초기화
+    localStorage.clear();
+    ChatStorage.clear(); // ChatStorage도 명시적으로 초기화
+    
     setTimeout(() => {
       if (endModalType === 'chat') {
         // 'chat' 타입일 때는 채팅만 리셋하고 감독 선택 화면으로
@@ -536,8 +793,16 @@ export default function ChatPage() {
                   <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex-shrink-0">
                     <span className="text-xs text-white/70">대화</span>
                     <span className="text-base font-bold text-yellow-300">{state.chat.currentTurn}</span>
-                    <span className="text-xs text-white/70">/15</span>
+                    <span className="text-xs text-white/70">/20</span>
                   </div>
+                  
+                  {/* 시나리오 상태 배지 */}
+                  {scenarioContext && (
+                    <ScenarioStatusBadge 
+                      stage={conversationStage}
+                      hasScenario={!!scenarioContext.draftScenario || !!finalScenario}
+                    />
+                  )}
                   
                   {/* 타이머 */}
                   <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex-shrink-0">
@@ -706,7 +971,7 @@ export default function ChatPage() {
                     <span className="text-xs text-white/70">대화</span>
                     <div className="flex items-center gap-1">
                       <span className="text-sm font-bold text-yellow-300">{state.chat.currentTurn}</span>
-                      <span className="text-xs text-white/70">/15</span>
+                      <span className="text-xs text-white/70">/20</span>
                     </div>
                   </div>
 
@@ -737,6 +1002,16 @@ export default function ChatPage() {
 
             {/* 채팅 로그 (스크롤 영역) */}
             <div className="flex-1 overflow-y-auto px-4 py-6 pb-32 space-y-4 bg-black/25 backdrop-blur-sm min-h-0">
+              {/* 시나리오 상태 표시 */}
+              {scenarioContext && (
+                <ScenarioDisplay
+                  stage={conversationStage}
+                  scenario={scenarioContext.draftScenario || finalScenario}
+                  originalStory={scenarioContext.originalStory}
+                  className="mb-4 sticky top-0 z-10"
+                />
+              )}
+              
               <AnimatePresence>
                 {state.chat.messages.map(m => (
                   <ChatBubble

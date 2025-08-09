@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useApp } from '@/contexts/AppContext'
-import { generateDirectorResponse, getInitialGreeting } from '@/lib/gemini'
+import { generateDirectorResponseLegacy, getInitialGreeting } from '@/lib/gemini'
 import { getOfflineResponse, isOnline } from '@/lib/offlineResponses'
 import type { Message, Choice } from '@/types'
 
@@ -155,7 +155,7 @@ export function useChat(options: UseChatOptions = {}) {
               scenarioArray[emotionIndex] = selectedContent
             }
             
-            response = await generateDirectorResponse(
+            response = await generateDirectorResponseLegacy(
               state.director.selected!,
               scenarioArray,
               content,
